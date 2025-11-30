@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.serverless/
+.aws-sam/
+.env
+*.log
+.DS_Store
+# AWS Lambda Layer 构建目录
+nodejs/
+

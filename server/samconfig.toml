@@ -1,0 +1,13 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "sorting"
+resolve_s3 = true
+s3_prefix = "sorting"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "StageName=\"$default\" MongoDbUri=\"mongodb+srv://kenjiding807_db_user:KpoGAFiBOWSuIGJK@cluster0.kozu4xc.mongodb.net/sorting-management?retryWrites=true&w=majority&appName=Cluster0\" MongoDbTls=\"true\" MongoDbTlsAllowInvalid=\"false\""
+image_repositories = []
+
+[default.global.parameters]
+region = "us-east-1"

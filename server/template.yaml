@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Sorting Management System API (Express on AWS Lambda via AWS SAM)
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Architectures:
+      - arm64
+    Timeout: 30
+    MemorySize: 1024
+    Tracing: Active
+
+Parameters:
+  StageName:
+    Type: String
+    Default: $default
+    Description: Stage name for the HTTP API (use $default to deploy without a stage prefix)
+  MongoDbUri:
+    Type: String
+    Description: Fully qualified MongoDB connection string
+  MongoDbTls:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Whether to enable TLS when connecting to MongoDB
+  MongoDbTlsAllowInvalid:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Whether to allow invalid TLS certificates (self-signed)
+
+Resources:
+  SortingSystemApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref StageName
+
+  DependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub sorting-system-dependencies-${StageName}
+      Description: Node.js dependencies for Sorting Management System
+      ContentUri: nodejs/
+      CompatibleRuntimes:
+        - nodejs20.x
+        - nodejs18.x
+      RetentionPolicy: Retain
+    Metadata:
+      BuildMethod: nodejs20.x
+
+  SortingSystemFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub sorting-system-server-${StageName}
+      CodeUri: dist/
+      Handler: lambda.handler
+      Description: Express API for Sorting Management System
+      Layers:
+        - !Ref DependenciesLayer
+      Events:
+        ProxyAny:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SortingSystemApi
+            Path: /{proxy+}
+            Method: ANY
+      Environment:
+        Variables:
+          NODE_ENV: production
+          MONGODB_URI: !Ref MongoDbUri
+          MONGODB_TLS: !Ref MongoDbTls
+          MONGODB_TLS_ALLOW_INVALID: !Ref MongoDbTlsAllowInvalid
+      Policies:
+        - AWSLambdaBasicExecutionRole
+    Metadata:
+      BuildMethod: nodejs18.x
+
+Outputs:
+  ApiEndpoint:
+    Description: HTTP API base URL
+    Value: !GetAtt SortingSystemApi.ApiEndpoint
