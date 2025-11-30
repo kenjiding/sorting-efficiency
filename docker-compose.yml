@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # MongoDB 数据库服务
+  mongodb:
+    image: mongo:7
+    container_name: sorting-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: sorting-management
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - sorting-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/sorting-management --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # 后端 API 服务（可选：如果需要容器化后端）
+  # 取消注释以下部分以启用容器化的后端服务
+  # backend:
+  #   build:
+  #     context: ./server
+  #     dockerfile: Dockerfile
+  #   container_name: sorting-backend
+  #   restart: unless-stopped
+  #   ports:
+  #     - "7890:7890"
+  #   environment:
+  #     - PORT=7890
+  #     - MONGODB_URI=mongodb://mongodb:27017/sorting-management
+  #     - NODE_ENV=production
+  #   depends_on:
+  #     mongodb:
+  #       condition: service_healthy
+  #   networks:
+  #     - sorting-network
+  #   volumes:
+  #     - ./server:/app
+  #     - /app/node_modules
+
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+
+networks:
+  sorting-network:
+    driver: bridge
+
