@@ -1,16 +1,23 @@
-import { useState, useEffect, useMemo } from 'react';
-import { AlertTriangle, Search, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { AlertTriangle, Search, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, Upload, CheckCircle, AlertCircle, X, Sparkles } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import FileUpload from './FileUpload';
 import FilterPanel from './FilterPanel';
+import AIAnalysisModal from '../../common/AIAnalysisModal';
 import { parseProblemItemExcel } from '../../../utils/serviceDataExcelUtils';
 import apiClient from '../../../api/apiClient';
+import { formatTimePeriod } from '../../../utils/dateUtils';
+import { buildServiceDataPrompt } from '../../../utils/openaiUtils';
 
 const ProblemItemModule = () => {
   const [uploadStatus, setUploadStatus] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [latestUploadInfo, setLatestUploadInfo] = useState(null);
+  const fileInputRef = useRef(null);
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [aiPrompt, setAIPrompt] = useState('');
   
   // 表格显示控制
   const [displayLimit, setDisplayLimit] = useState(20); // 初始显示20条
@@ -82,6 +89,7 @@ const ProblemItemModule = () => {
 
       // 重新加载数据
       loadData();
+      loadLatestUploadInfo();
     } catch (error) {
       console.error('文件上传失败:', error);
       setUploadStatus({
@@ -91,6 +99,16 @@ const ProblemItemModule = () => {
       });
     } finally {
       setUploading(false);
+    }
+  };
+
+  // 加载最新上传数据信息
+  const loadLatestUploadInfo = async () => {
+    try {
+      const data = await apiClient.serviceData.getProblemItemsLatest();
+      setLatestUploadInfo(data);
+    } catch (error) {
+      console.error('加载最新上传信息失败:', error);
     }
   };
 
@@ -116,6 +134,7 @@ const ProblemItemModule = () => {
 
   useEffect(() => {
     loadData();
+    loadLatestUploadInfo();
     // 重置显示数量当筛选条件改变时
     setDisplayLimit(INITIAL_DISPLAY_COUNT);
     // 重置排序状态
@@ -159,9 +178,10 @@ const ProblemItemModule = () => {
   const tableData = useMemo(() => {
     if (!data || data.length === 0) return [];
     
-    let processedData = data.map(item => {
+      let processedData = data.map(item => {
       const row = {
         registerTime: item.registerTime || '',
+        timePeriod: item.timePeriod || '', // 保留timePeriod用于格式化显示
         supplier: item.supplier || '',
         driverName: item.driverName || '',
         reason: item.reason || '',
@@ -172,6 +192,7 @@ const ProblemItemModule = () => {
       if (dimension === 'supplier') {
         return {
           registerTime: row.registerTime,
+          timePeriod: row.timePeriod, // 保留timePeriod用于格式化显示
           supplier: row.supplier,
           count: row.count,
           driverName: row.driverName,
@@ -180,6 +201,7 @@ const ProblemItemModule = () => {
       } else if (dimension === 'driver') {
         return {
           registerTime: row.registerTime,
+          timePeriod: row.timePeriod, // 保留timePeriod用于格式化显示
           driverName: row.driverName,
           supplier: row.supplier,
           count: row.count,
@@ -188,6 +210,7 @@ const ProblemItemModule = () => {
       } else {
         return {
           registerTime: row.registerTime,
+          timePeriod: row.timePeriod, // 保留timePeriod用于格式化显示
           reason: row.reason,
           count: row.count,
           supplier: row.supplier,
@@ -298,16 +321,82 @@ const ProblemItemModule = () => {
 
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'];
 
+  // 处理AI分析
+  const handleAIAnalysis = () => {
+    if (data.length === 0) {
+      alert('请先加载数据');
+      return;
+    }
+
+    const prompt = buildServiceDataPrompt(data, dimension, timeUnit, timeRange, 'problem');
+    setAIPrompt(prompt);
+    setShowAIModal(true);
+  };
+
   return (
     <div className="space-y-6">
       {/* 文件上传 */}
-      <FileUpload
-        title="上传DA问题件审核文件"
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between gap-4">
+          <h4 className="text-md font-semibold text-gray-900">上传DA问题件审核文件</h4>
+          <div className="flex items-center gap-4">
+            <input
+              ref={fileInputRef}
+              type="file"
         accept=".xlsx,.xls"
-        onFileUpload={handleFileUpload}
-        uploadStatus={uploadStatus}
-        uploading={uploading}
-      />
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  handleFileUpload(file);
+                }
+                e.target.value = '';
+              }}
+              className="hidden"
+              disabled={uploading}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              {uploading ? '上传中...' : '选择文件'}
+            </button>
+        {latestUploadInfo && latestUploadInfo.latestUploadDate && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+              <span className="text-sm font-medium text-blue-900">最新数据：</span>
+              <span className="text-sm text-blue-700">
+                {new Date(latestUploadInfo.latestUploadDate).toLocaleDateString('zh-CN', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </span>
+              <span className="text-sm font-semibold text-blue-600">
+                ({latestUploadInfo.recordCount} 条)
+              </span>
+            </div>
+            )}
+          </div>
+        </div>
+        {uploadStatus && (
+          <div className={`mt-4 flex items-center gap-2 ${
+            uploadStatus.type === 'success' ? 'text-green-600' : 
+            uploadStatus.type === 'error' ? 'text-red-600' : 
+            'text-blue-600'
+          }`}>
+            {uploadStatus.type === 'success' && <CheckCircle className="h-5 w-5" />}
+            {uploadStatus.type === 'error' && <AlertCircle className="h-5 w-5" />}
+            <span className="text-sm">{uploadStatus.message}</span>
+            <button
+              onClick={() => setUploadStatus(null)}
+              className="ml-2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* 筛选面板 */}
       <FilterPanel
@@ -318,6 +407,16 @@ const ProblemItemModule = () => {
         onTimeUnitChange={setTimeUnit}
         timeRange={timeRange}
         onTimeRangeChange={setTimeRange}
+        aiAnalysisButton={
+          <button
+            onClick={handleAIAnalysis}
+            disabled={loading || data.length === 0}
+            className="inline-flex items-center justify-center px-6 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            AI分析
+          </button>
+        }
       />
 
       {/* 数据展示 */}
@@ -636,9 +735,14 @@ const ProblemItemModule = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {tableData.slice(0, displayLimit).map((row, index) => (
+                      {tableData.slice(0, displayLimit).map((row, index) => {
+                        // 格式化时间显示：周/月维度使用timePeriod，天维度使用registerTime
+                        const timeDisplay = timeUnit !== 'day' && row.timePeriod 
+                          ? formatTimePeriod(row.timePeriod, timeUnit)
+                          : row.registerTime;
+                        return (
                         <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                          <td className="px-4 py-3 text-sm text-gray-900">{row.registerTime}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{timeDisplay}</td>
                           {dimension === 'supplier' && (
                             <>
                               <td className="px-4 py-3 text-sm text-gray-900">{row.supplier}</td>
@@ -664,7 +768,8 @@ const ProblemItemModule = () => {
                             </>
                           )}
                         </tr>
-                      ))}
+                      );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -705,6 +810,14 @@ const ProblemItemModule = () => {
           </div>
         </>
       )}
+
+      {/* AI分析模态框 */}
+      <AIAnalysisModal
+        isOpen={showAIModal}
+        onClose={() => setShowAIModal(false)}
+        prompt={aiPrompt}
+        title="问题件数量分析AI分析"
+      />
     </div>
   );
 };

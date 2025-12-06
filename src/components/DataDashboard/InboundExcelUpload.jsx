@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Upload, CheckCircle, AlertCircle, X } from 'lucide-react';
 import { parseInboundScanExcel } from '../../utils/inboundExcelUtils';
 import apiClient from '../../api/apiClient';
@@ -9,7 +9,22 @@ const InboundExcelUpload = ({ onUploadSuccess }) => {
   const [uploading, setUploading] = useState(false);
   const [parseProgress, setParseProgress] = useState(0);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [latestUploadInfo, setLatestUploadInfo] = useState(null);
   const fileInputRef = useRef(null);
+
+  // 加载最新上传数据信息
+  const loadLatestUploadInfo = async () => {
+    try {
+      const data = await apiClient.inboundData.getLatest();
+      setLatestUploadInfo(data);
+    } catch (error) {
+      console.error('加载最新上传信息失败:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadLatestUploadInfo();
+  }, []);
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
@@ -94,6 +109,7 @@ const InboundExcelUpload = ({ onUploadSuccess }) => {
         setUploadStatus(null);
         setParseProgress(0);
         setUploadProgress(0);
+        loadLatestUploadInfo(); // 重新加载最新上传信息
         onUploadSuccess?.();
       }, 3000);
     } catch (error) {
@@ -116,6 +132,8 @@ const InboundExcelUpload = ({ onUploadSuccess }) => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
       <div className="px-6 py-4 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div>
         <h3 className="text-lg font-semibold text-gray-900 flex items-center">
           <Upload className="h-5 w-5 mr-2 text-primary-600" />
           上传到件扫描数据
@@ -123,6 +141,23 @@ const InboundExcelUpload = ({ onUploadSuccess }) => {
         <p className="mt-1 text-sm text-gray-600">
           上传Excel文件，系统会自动检测重复的运单号并跳过
         </p>
+          </div>
+          {latestUploadInfo && latestUploadInfo.latestUploadDate && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+              <span className="text-sm font-medium text-blue-900">最新数据：</span>
+              <span className="text-sm text-blue-700">
+                {new Date(latestUploadInfo.latestUploadDate).toLocaleDateString('zh-CN', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </span>
+              <span className="text-sm font-semibold text-blue-600">
+                ({latestUploadInfo.recordCount} 条)
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="p-6">

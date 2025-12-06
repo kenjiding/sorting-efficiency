@@ -219,6 +219,9 @@ class APIClient {
     // 获取聚合统计
     getAggregate: (params = {}) => this.get(API_ENDPOINTS.INBOUND_SCANS_AGGREGATE, params),
     
+    // 获取最新上传数据的日期和数量
+    getLatest: () => this.get(`${API_ENDPOINTS.INBOUND_SCANS}/latest`),
+    
     // 供应商管理
     getSuppliers: () => this.get(API_ENDPOINTS.SUPPLIERS),
     createSupplier: (data) => this.post(API_ENDPOINTS.SUPPLIERS, data),
@@ -253,6 +256,12 @@ class APIClient {
       const url = `${API_ENDPOINTS.WAGES}/efficiency-cost-summary`;
       return this.get(url, params);
     },
+    
+    // 获取最新上传数据的日期和数量
+    getLatest: (params = {}) => {
+      const url = `${API_ENDPOINTS.WAGES}/records/latest`;
+      return this.get(url, params);
+    },
   };
 
   // 服务数据相关API
@@ -260,14 +269,17 @@ class APIClient {
     // 问题件相关
     uploadProblemItems: (records) => this.post(API_ENDPOINTS.PROBLEM_ITEMS_UPLOAD, { records }),
     getProblemItems: (params = {}) => this.get(API_ENDPOINTS.PROBLEM_ITEMS, params),
+    getProblemItemsLatest: () => this.get(`${API_ENDPOINTS.PROBLEM_ITEMS}/latest`),
     
     // 丢包相关
     uploadLostPackages: (records) => this.post(API_ENDPOINTS.LOST_PACKAGES_UPLOAD, { records }),
     getLostPackages: (params = {}) => this.get(API_ENDPOINTS.LOST_PACKAGES, params),
+    getLostPackagesLatest: () => this.get(`${API_ENDPOINTS.LOST_PACKAGES}/latest`),
     
     // 客诉相关
     uploadComplaints: (records) => this.post(API_ENDPOINTS.COMPLAINTS_UPLOAD, { records }),
     getComplaints: (params = {}) => this.get(API_ENDPOINTS.COMPLAINTS, params),
+    getComplaintsLatest: () => this.get(`${API_ENDPOINTS.COMPLAINTS}/latest`),
     deleteComplaints: () => this.delete(API_ENDPOINTS.COMPLAINTS),
   };
 

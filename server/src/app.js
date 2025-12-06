@@ -16,7 +16,8 @@ import serviceDataRouter from './routes/serviceData.js';
 
 dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/sorting-management';
+// const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/sorting-management';
+const MONGODB_URI = 'mongodb://localhost:27017/sorting-management';
 
 const mongooseOptions = {
   serverSelectionTimeoutMS: 5000,

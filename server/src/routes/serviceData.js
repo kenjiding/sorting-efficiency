@@ -126,6 +126,41 @@ router.post('/problem-items/upload', async (req, res) => {
   }
 });
 
+// 获取最新上传的问题件数据日期和数量
+router.get('/problem-items/latest', async (req, res) => {
+  try {
+    // 获取最新日期的记录（按registerDate排序，registerDate是字符串格式 YYYY-MM-DD）
+    const latestRecord = await ProblemItem.findOne()
+      .sort({ registerDate: -1 })
+      .select('registerDate')
+      .lean();
+    
+    if (!latestRecord || !latestRecord.registerDate) {
+      return res.json({
+        latestUploadDate: null,
+        recordCount: 0,
+        message: '暂无数据'
+      });
+    }
+    
+    // registerDate已经是字符串格式 YYYY-MM-DD，直接使用
+    const latestDateStr = latestRecord.registerDate;
+    
+    // 统计该日期的记录数量（字符串比较即可）
+    const count = await ProblemItem.countDocuments({
+      registerDate: latestDateStr
+    });
+    
+    res.json({
+      latestUploadDate: latestDateStr,
+      recordCount: count
+    });
+  } catch (error) {
+    console.error('获取最新问题件记录失败:', error);
+    res.status(500).json({ message: '获取最新记录失败', error: error.message });
+  }
+});
+
 // 获取问题件数据（支持多维度聚合）
 router.get('/problem-items', async (req, res) => {
   try {
@@ -316,6 +351,41 @@ router.post('/lost-packages/upload', async (req, res) => {
   } catch (error) {
     console.error('上传丢包数据失败:', error);
     res.status(500).json({ message: '上传失败: ' + error.message });
+  }
+});
+
+// 获取最新上传的丢包数据日期和数量
+router.get('/lost-packages/latest', async (req, res) => {
+  try {
+    // 获取最新日期的记录（按finishDate排序，finishDate是字符串格式 YYYY-MM-DD）
+    const latestRecord = await LostPackage.findOne()
+      .sort({ finishDate: -1 })
+      .select('finishDate')
+      .lean();
+    
+    if (!latestRecord || !latestRecord.finishDate) {
+      return res.json({
+        latestUploadDate: null,
+        recordCount: 0,
+        message: '暂无数据'
+      });
+    }
+    
+    // finishDate已经是字符串格式 YYYY-MM-DD，直接使用
+    const latestDateStr = latestRecord.finishDate;
+    
+    // 统计该日期的记录数量（字符串比较即可）
+    const count = await LostPackage.countDocuments({
+      finishDate: latestDateStr
+    });
+    
+    res.json({
+      latestUploadDate: latestDateStr,
+      recordCount: count
+    });
+  } catch (error) {
+    console.error('获取最新丢包记录失败:', error);
+    res.status(500).json({ message: '获取最新记录失败', error: error.message });
   }
 });
 
@@ -601,6 +671,41 @@ router.post('/complaints/upload', async (req, res) => {
   } catch (error) {
     console.error('上传客诉数据失败:', error);
     res.status(500).json({ message: '上传失败: ' + error.message });
+  }
+});
+
+// 获取最新上传的客诉数据日期和数量
+router.get('/complaints/latest', async (req, res) => {
+  try {
+    // 获取最新日期的记录（按createDate排序，createDate是字符串格式 YYYY-MM-DD）
+    const latestRecord = await Complaint.findOne()
+      .sort({ createDate: -1 })
+      .select('createDate')
+      .lean();
+    
+    if (!latestRecord || !latestRecord.createDate) {
+      return res.json({
+        latestUploadDate: null,
+        recordCount: 0,
+        message: '暂无数据'
+      });
+    }
+    
+    // createDate已经是字符串格式 YYYY-MM-DD，直接使用
+    const latestDateStr = latestRecord.createDate;
+    
+    // 统计该日期的记录数量（字符串比较即可）
+    const count = await Complaint.countDocuments({
+      createDate: latestDateStr
+    });
+    
+    res.json({
+      latestUploadDate: latestDateStr,
+      recordCount: count
+    });
+  } catch (error) {
+    console.error('获取最新客诉记录失败:', error);
+    res.status(500).json({ message: '获取最新记录失败', error: error.message });
   }
 });
 

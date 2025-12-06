@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { TrendingUp, TrendingDown, LineChart, Calendar, Search, Filter, DollarSign } from 'lucide-react';
+import { TrendingUp, TrendingDown, LineChart, Calendar, Search, Filter, DollarSign, Sparkles } from 'lucide-react';
 import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import AIAnalysisModal from '../common/AIAnalysisModal';
 import apiClient from '../../api/apiClient';
 import useStore from '../../store/useStore';
 import { getWeekRange } from '../../utils/dateUtils';
+import { buildCostDataPrompt } from '../../utils/openaiUtils';
 
 const CostDataModule = () => {
   const { selectedRegion } = useStore();
@@ -27,7 +29,7 @@ const CostDataModule = () => {
   });
   
   // 是否剔除不分拣的时间（仅适用于人效图表）
-  const [excludeNonSortingDays, setExcludeNonSortingDays] = useState(false);
+  const [excludeNonSortingDays, setExcludeNonSortingDays] = useState(true);
   
   // 数据状态
   const [efficiencyData, setEfficiencyData] = useState([]);
@@ -35,6 +37,8 @@ const CostDataModule = () => {
   const [loading, setLoading] = useState(false);
   const loadingRef = useRef(false);
   const mountedRef = useRef(false);
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [aiPrompt, setAIPrompt] = useState('');
 
   // 使用统一的日期工具函数处理澳洲时区
 
@@ -429,6 +433,18 @@ const CostDataModule = () => {
     return `${formatDate(range.start)} - ${formatDate(range.end)}`;
   };
 
+  // 处理AI分析
+  const handleAIAnalysis = () => {
+    if (efficiencyData.length === 0 && costData.length === 0) {
+      alert('请先加载数据');
+      return;
+    }
+
+    const prompt = buildCostDataPrompt(efficiencyData, costData, filterType);
+    setAIPrompt(prompt);
+    setShowAIModal(true);
+  };
+
   // 获取周标签的排序顺序（用于排序）
   const getWeekLabelOrder = (label) => {
     if (label === '上周') return 1;
@@ -561,6 +577,14 @@ const CostDataModule = () => {
               >
                 <Filter className="h-4 w-4" />
                 剔除不分拣的时间
+              </button>
+              <button
+                onClick={handleAIAnalysis}
+                disabled={loading || (efficiencyData.length === 0 && costData.length === 0)}
+                className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                AI分析
               </button>
             </div>
           </div>
@@ -916,6 +940,14 @@ const CostDataModule = () => {
             </div>
           </>
         )}
+
+      {/* AI分析模态框 */}
+      <AIAnalysisModal
+        isOpen={showAIModal}
+        onClose={() => setShowAIModal(false)}
+        prompt={aiPrompt}
+        title="成本数据 - 人效分析AI分析"
+      />
     </div>
   );
 };

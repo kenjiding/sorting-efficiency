@@ -15,16 +15,22 @@
     "deploy": "vite build && AWS_PROFILE=aws_872570730 aws s3 cp ./dist s3://sorting-efficiency --recursive"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "date-fns": "^2.30.0",
     "file-saver": "^2.0.5",
     "html5-qrcode": "^2.3.8",
+    "katex": "^0.16.25",
     "lucide-react": "^0.292.0",
     "react": "^18.2.0",
     "react-datepicker": "^4.25.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.48.2",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^6.20.1",
     "recharts": "^2.8.0",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "xlsx": "^0.18.5",
     "zustand": "^4.4.7"
   },

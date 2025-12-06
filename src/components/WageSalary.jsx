@@ -46,6 +46,10 @@ const WageSalary = () => {
   const [editingRecordId, setEditingRecordId] = useState(null);
   const [editingEmployeeId, setEditingEmployeeId] = useState(null);
   const [tempRole, setTempRole] = useState('');
+  // 通用编辑状态：{ recordId: { field: value } }
+  const [editingFields, setEditingFields] = useState({});
+  // 整行编辑状态：记录ID -> 编辑数据
+  const [rowEditingData, setRowEditingData] = useState({});
   
   // 搜索和筛选
   const [searchQuery, setSearchQuery] = useState('');
@@ -649,6 +653,108 @@ const WageSalary = () => {
     setEditingRecordId(null);
   };
 
+  // 通用更新记录字段
+  const handleUpdateRecordField = async (recordId, fieldUpdates) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/records/${recordId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...fieldUpdates, rateSettings })
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        showMessage('更新成功', 'success');
+        await loadWageRecords();
+        await loadStatistics();
+        // 清除编辑状态
+        setEditingFields(prev => {
+          const newState = { ...prev };
+          delete newState[recordId];
+          return newState;
+        });
+      } else {
+        showMessage(result.message || '更新失败', 'error');
+      }
+    } catch (error) {
+      console.error('更新记录失败:', error);
+      showMessage('更新记录失败', 'error');
+    }
+  };
+
+  // 开始编辑字段
+  const startEditingField = (recordId, field, currentValue) => {
+    setEditingFields(prev => ({
+      ...prev,
+      [recordId]: {
+        ...prev[recordId],
+        [field]: currentValue
+      }
+    }));
+  };
+
+  // 取消编辑字段
+  const cancelEditingField = (recordId, field) => {
+    setEditingFields(prev => {
+      const newState = { ...prev };
+      if (newState[recordId]) {
+        delete newState[recordId][field];
+        if (Object.keys(newState[recordId]).length === 0) {
+          delete newState[recordId];
+        }
+      }
+      return newState;
+    });
+  };
+
+  // 保存编辑的字段
+  const saveEditingField = (recordId, field, value) => {
+    const fieldUpdates = { [field]: value };
+    handleUpdateRecordField(recordId, fieldUpdates);
+  };
+
+  // 开始整行编辑
+  const startRowEditing = (record) => {
+    setRowEditingData({
+      [record._id]: {
+        date: convertDateToStandard(record.date),
+        workday: record.workday || '',
+        totalHours: record.totalHours || '',
+        role: record.role,
+        isPublicHoliday: record.isPublicHoliday || false,
+        isSorting: record.isSorting || false
+      }
+    });
+  };
+
+  // 取消整行编辑
+  const cancelRowEditing = (recordId) => {
+    setRowEditingData(prev => {
+      const newState = { ...prev };
+      delete newState[recordId];
+      return newState;
+    });
+  };
+
+  // 保存整行编辑
+  const saveRowEditing = async (recordId) => {
+    const editData = rowEditingData[recordId];
+    if (!editData) return;
+
+    const updates = {
+      date: editData.date,
+      workday: editData.workday,
+      totalHours: editData.totalHours,
+      role: editData.role,
+      isPublicHoliday: editData.isPublicHoliday,
+      isSorting: editData.isSorting
+    };
+
+    await handleUpdateRecordField(recordId, updates);
+    cancelRowEditing(recordId);
+  };
+
   // 删除记录
   const handleDeleteRecord = async (recordId) => {
     if (!confirm('确定要删除这条记录吗？')) return;
@@ -1033,7 +1139,9 @@ const WageSalary = () => {
         <div className="space-y-6">
           {/* 上传控制面板 */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">上传配置</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">上传配置</h3>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
 
@@ -1378,76 +1486,145 @@ const WageSalary = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {paginatedRecords.map((record) => (
-                        <tr key={record._id} className="hover:bg-gray-50">
+                      {paginatedRecords.map((record) => {
+                        const isEditingDate = editingFields[record._id]?.date !== undefined;
+                        const isEditingWorkday = editingFields[record._id]?.workday !== undefined;
+                        const isEditingTotalHours = editingFields[record._id]?.totalHours !== undefined;
+                        const isEditingRole = editingRecordId === record._id;
+                        const isEditingType = editingFields[record._id]?.type !== undefined;
+                        const isRowEditing = rowEditingData[record._id] !== undefined;
+                        const editData = rowEditingData[record._id];
+                        
+                        return (
+                        <tr key={record._id} className={`hover:bg-gray-50 ${isRowEditing ? 'bg-blue-50' : ''}`}>
                           <td className="px-3 py-3 text-sm text-gray-900">{record.employeeId}</td>
                           <td className="px-3 py-3 text-sm text-gray-900">{record.name}</td>
                           <td className="px-3 py-3 text-sm text-gray-600">
-                            {new Date(record.date).toLocaleDateString('zh-CN')}
+                              {isRowEditing ? (
+                                <input
+                                  type="date"
+                                  value={editData.date || ''}
+                                  onChange={(e) => {
+                                    setRowEditingData(prev => ({
+                                      ...prev,
+                                      [record._id]: {
+                                        ...prev[record._id],
+                                        date: e.target.value
+                                      }
+                                    }));
+                                  }}
+                                  className="text-sm border border-gray-300 rounded px-2 py-1 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              ) : (
+                                <span>{formatDate(record.date)}</span>
+                              )}
                           </td>
-                          <td className="px-3 py-3 text-sm text-gray-600">{record.workday}</td>
                           <td className="px-3 py-3 text-sm text-gray-600">
-                            {record.totalHours} ({record.totalHoursDecimal.toFixed(2)}h)
+                              {isRowEditing ? (
+                                <input
+                                  type="text"
+                                  value={editData.workday || ''}
+                                  onChange={(e) => {
+                                    setRowEditingData(prev => ({
+                                      ...prev,
+                                      [record._id]: {
+                                        ...prev[record._id],
+                                        workday: e.target.value
+                                      }
+                                    }));
+                                  }}
+                                  className="text-sm border border-gray-300 rounded px-2 py-1 w-24 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="工作日"
+                                />
+                              ) : (
+                                <span>{formatWorkday(record.workday)}</span>
+                              )}
+                          </td>
+                            <td className="px-3 py-3 text-sm text-gray-600">
+                              {isRowEditing ? (
+                                <input
+                                  type="text"
+                                  value={editData.totalHours || ''}
+                                  onChange={(e) => {
+                                    setRowEditingData(prev => ({
+                                      ...prev,
+                                      [record._id]: {
+                                        ...prev[record._id],
+                                        totalHours: e.target.value
+                                      }
+                                    }));
+                                  }}
+                                  className="text-sm border border-gray-300 rounded px-2 py-1 w-20 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="总时长"
+                                />
+                              ) : (
+                                <span>{record.totalHours} ({record.totalHoursDecimal.toFixed(2)}h)</span>
+                              )}
                           </td>
                           <td className="px-3 py-3 text-sm">
-                            {editingRecordId === record._id ? (
-                              <div className="flex items-center gap-2">
+                              {isRowEditing ? (
                                 <select
-                                  value={tempRole}
-                                  onChange={(e) => setTempRole(e.target.value)}
+                                  value={editData.role || 'worker'}
+                                  onChange={(e) => {
+                                    setRowEditingData(prev => ({
+                                      ...prev,
+                                      [record._id]: {
+                                        ...prev[record._id],
+                                        role: e.target.value
+                                      }
+                                    }));
+                                  }}
                                   className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
                                   {roles.map(role => (
                                     <option key={role} value={role}>{roleMap[role]}</option>
                                   ))}
                                 </select>
-                                <button
-                                  onClick={() => handleUpdateRecordRole(record._id, tempRole)}
-                                  className="text-green-600 hover:text-green-800"
-                                >
-                                  <Save className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => setEditingRecordId(null)}
-                                  className="text-gray-600 hover:text-gray-800"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                  record.role === 'worker' ? 'bg-blue-100 text-blue-800' :
-                                  record.role === 'forklift' ? 'bg-purple-100 text-purple-800' :
-                                  'bg-green-100 text-green-800'
-                                }`}>
-                                  {roleMap[record.role]}
-                                </span>
-                                <button
-                                  onClick={() => {
-                                    setEditingRecordId(record._id);
-                                    setTempRole(record.role);
-                                  }}
-                                  className="text-blue-600 hover:text-blue-800"
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                </button>
-                              </div>
-                            )}
+                             ) : (
+                               <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                 record.role === 'worker' ? 'bg-blue-100 text-blue-800' :
+                                 record.role === 'forklift' ? 'bg-purple-100 text-purple-800' :
+                                 'bg-green-100 text-green-800'
+                               }`}>
+                                 {roleMap[record.role]}
+                               </span>
+                             )}
                           </td>
                           <td className="px-3 py-3 text-sm">
-                            {record.isPublicHoliday ? (
-                              <span className="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                                公共假期
-                              </span>
-                            ) : record.isSorting ? (
-                              <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
-                                分拣
-                              </span>
-                            ) : (
-                              <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                                不分拣
-                              </span>
+                              {isRowEditing ? (
+                                <select
+                                  value={editData.isPublicHoliday ? 'publicHoliday' : editData.isSorting ? 'sorting' : 'regular'}
+                                  onChange={(e) => {
+                                    const type = e.target.value;
+                                    setRowEditingData(prev => ({
+                                      ...prev,
+                                      [record._id]: {
+                                        ...prev[record._id],
+                                        isPublicHoliday: type === 'publicHoliday',
+                                        isSorting: type === 'sorting'
+                                      }
+                                    }));
+                                  }}
+                                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="regular">不分拣</option>
+                                  <option value="sorting">分拣</option>
+                                  <option value="publicHoliday">公共假期</option>
+                                </select>
+                              ) : (
+                                record.isPublicHoliday ? (
+                                  <span className="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                                    公共假期
+                                  </span>
+                                ) : record.isSorting ? (
+                                  <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                                    分拣
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                    不分拣
+                                  </span>
+                                )
                             )}
                           </td>
                           <td className="px-3 py-3 text-sm text-right text-gray-900 font-medium">
@@ -1457,15 +1634,47 @@ const WageSalary = () => {
                             ${record.totalWage.toFixed(2)}
                           </td>
                           <td className="px-3 py-3 text-sm text-center">
-                            <button
-                              onClick={() => handleDeleteRecord(record._id)}
-                              className="text-red-600 hover:text-red-800"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center justify-center gap-2">
+                              {isRowEditing ? (
+                                <>
+                                  <button
+                                    onClick={() => saveRowEditing(record._id)}
+                                    className="text-green-600 hover:text-green-800"
+                                    title="保存"
+                                  >
+                                    <Save className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => cancelRowEditing(record._id)}
+                                    className="text-gray-600 hover:text-gray-800"
+                                    title="取消"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => startRowEditing(record)}
+                                    className="text-blue-600 hover:text-blue-800"
+                                    title="编辑"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteRecord(record._id)}
+                                    className="text-red-600 hover:text-red-800"
+                                    title="删除"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                     <tfoot className="bg-gray-50">
                       <tr>

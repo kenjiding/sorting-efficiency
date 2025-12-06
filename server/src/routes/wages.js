@@ -439,6 +439,94 @@ router.put('/records/:id/role', async (req, res) => {
   }
 });
 
+// 更新单条工资记录（通用接口，支持更新多个字段）
+router.put('/records/:id', async (req, res) => {
+  try {
+    const { 
+      date, 
+      totalHours, 
+      workday, 
+      role, 
+      isSorting, 
+      isPublicHoliday,
+      firstClockIn,
+      lastClockOut,
+      rateSettings 
+    } = req.body;
+    
+    const record = await WageRecord.findById(req.params.id);
+    
+    if (!record) {
+      return res.status(404).json({ message: '记录不存在' });
+    }
+
+    const customRates = rateSettings || defaultRates;
+    let needsRecalculation = false;
+
+    // 更新可编辑字段
+    if (date !== undefined) {
+      record.date = parseDate(date);
+      needsRecalculation = true;
+    }
+    
+    if (totalHours !== undefined) {
+      record.totalHours = totalHours;
+      record.totalHoursDecimal = calculateDecimalHours(totalHours);
+      needsRecalculation = true;
+    }
+    
+    if (workday !== undefined) {
+      record.workday = workday;
+      needsRecalculation = true;
+    }
+    
+    if (role !== undefined) {
+      if (!['worker', 'forklift', 'receptionist'].includes(role)) {
+        return res.status(400).json({ message: '无效的角色' });
+      }
+      record.role = role;
+      needsRecalculation = true;
+    }
+    
+    if (isSorting !== undefined) {
+      record.isSorting = isSorting;
+      needsRecalculation = true;
+    }
+    
+    if (isPublicHoliday !== undefined) {
+      record.isPublicHoliday = isPublicHoliday;
+      needsRecalculation = true;
+    }
+    
+    if (firstClockIn !== undefined) {
+      record.firstClockIn = firstClockIn;
+    }
+    
+    if (lastClockOut !== undefined) {
+      record.lastClockOut = lastClockOut;
+    }
+
+    // 如果相关字段发生变化，重新计算时薪和总工资
+    if (needsRecalculation) {
+      record.hourlyRate = calculateHourlyRate(
+        record.role,
+        record.workday,
+        record.isSorting,
+        record.isPublicHoliday,
+        customRates
+      );
+      record.totalWage = record.totalHoursDecimal * record.hourlyRate;
+    }
+
+    await record.save();
+
+    res.json({ message: '记录更新成功', record });
+  } catch (error) {
+    console.error('更新记录失败:', error);
+    res.status(500).json({ message: '更新记录失败', error: error.message });
+  }
+});
+
 // 删除工资记录
 router.delete('/records/:id', async (req, res) => {
   try {
@@ -534,6 +622,52 @@ router.get('/statistics', async (req, res) => {
   } catch (error) {
     console.error('获取统计数据失败:', error);
     res.status(500).json({ message: '获取统计数据失败', error: error.message });
+  }
+});
+
+// 获取最新上传数据的日期和数量
+router.get('/records/latest', async (req, res) => {
+  try {
+    const { region } = req.query;
+    const query = region ? { region } : {};
+    
+    // 获取最新日期的记录（按date排序，date是Date类型）
+    const latestRecord = await WageRecord.findOne(query)
+      .sort({ date: -1 })
+      .select('date')
+      .lean();
+    
+    if (!latestRecord || !latestRecord.date) {
+      return res.json({
+        latestUploadDate: null,
+        recordCount: 0,
+        message: '暂无数据'
+      });
+    }
+    
+    // 获取最新日期（date字段是Date类型）
+    const latestDate = new Date(latestRecord.date);
+    latestDate.setHours(0, 0, 0, 0);
+    const latestDateStr = latestDate.toISOString().split('T')[0];
+    const nextDay = new Date(latestDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+    
+    // 统计该日期的记录数量（使用Date对象查询）
+    const count = await WageRecord.countDocuments({
+      ...query,
+      date: {
+        $gte: latestDate,
+        $lt: nextDay
+      }
+    });
+    
+    res.json({
+      latestUploadDate: latestDateStr,
+      recordCount: count
+    });
+  } catch (error) {
+    console.error('获取最新工资记录失败:', error);
+    res.status(500).json({ message: '获取最新记录失败', error: error.message });
   }
 });
 

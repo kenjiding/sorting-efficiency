@@ -7,7 +7,8 @@ const FilterPanel = ({
   timeUnit,
   onTimeUnitChange,
   timeRange,
-  onTimeRangeChange
+  onTimeRangeChange,
+  aiAnalysisButton // 可选的AI分析按钮
 }) => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-4">
@@ -77,29 +78,36 @@ const FilterPanel = ({
         </div>
       </div>
 
-      {/* 时间范围选择 */}
-      {timeUnit === 'day' && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            选择时间区间：
-          </label>
-          <div className="flex items-center space-x-2">
-            <input
-              type="date"
-              value={timeRange.start}
-              onChange={(e) => onTimeRangeChange({ ...timeRange, start: e.target.value })}
-              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            />
-            <span className="text-gray-500">至</span>
-            <input
-              type="date"
-              value={timeRange.end}
-              onChange={(e) => onTimeRangeChange({ ...timeRange, end: e.target.value })}
-              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            />
+      {/* 时间范围选择和AI分析按钮 */}
+      <div className="flex items-end gap-8">
+        {timeUnit === 'day' ? (
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              选择时间区间：
+            </label>
+            <div className="flex items-center space-x-2">
+              <input
+                type="date"
+                value={timeRange.start}
+                onChange={(e) => onTimeRangeChange({ ...timeRange, start: e.target.value })}
+                className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+              <span className="text-gray-500">至</span>
+              <input
+                type="date"
+                value={timeRange.end}
+                onChange={(e) => onTimeRangeChange({ ...timeRange, end: e.target.value })}
+                className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
           </div>
-        </div>
-      )}
+        ) : null}
+        {aiAnalysisButton && (
+          <div className="flex items-center flex-shrink-0">
+            {aiAnalysisButton}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

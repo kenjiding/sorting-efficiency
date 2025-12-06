@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { TrendingUp, TrendingDown, Table, BarChart3, Package, ArrowUpRight, ArrowDownRight, ChevronDown, ChevronUp, ArrowUp, ArrowDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, ChevronDown, ChevronUp, ArrowUp, ArrowDown } from 'lucide-react';
 import { 
   XAxis, 
   YAxis, 
@@ -13,12 +13,16 @@ import {
   Bar,
   AreaChart,
   Area,
+  PieChart,
+  Pie,
   Cell
 } from 'recharts';
 
 const VolumeDataDisplay = ({ comparisonPeriods, viewMode, onViewModeChange }) => {
   // 每个周期的路由展开状态
   const [expandedRoutes, setExpandedRoutes] = useState({});
+  // 图表维度切换：'total' | 'supplier' | 'route'
+  const [chartDimension, setChartDimension] = useState('total');
   // 格式化日期范围显示
   const formatDateRange = (range) => {
     if (!range || !range.start || !range.end) return '';
@@ -209,6 +213,226 @@ const VolumeDataDisplay = ({ comparisonPeriods, viewMode, onViewModeChange }) =>
     }));
   }, [processedPeriods]);
 
+  // 供应商趋势图数据
+  const supplierTrendData = useMemo(() => {
+    if (processedPeriods.length === 0) return [];
+
+    // 收集所有供应商，按总货量排序
+    const allSuppliersMap = new Map();
+    processedPeriods.forEach(period => {
+      period.suppliers.forEach(supplier => {
+        if (!allSuppliersMap.has(supplier.supplierId)) {
+          allSuppliersMap.set(supplier.supplierId, {
+            supplierId: supplier.supplierId,
+            supplierName: supplier.supplierName || supplier.supplierId,
+            totalCount: 0
+          });
+        }
+        const supplierInfo = allSuppliersMap.get(supplier.supplierId);
+        supplierInfo.totalCount += supplier.count;
+      });
+    });
+
+    // 按总货量排序，取前10个
+    const topSuppliers = Array.from(allSuppliersMap.values())
+      .sort((a, b) => b.totalCount - a.totalCount)
+      .slice(0, 10);
+
+    // 按时间倒序排列周期
+    const reversedPeriods = [...processedPeriods].reverse();
+
+    // 为每个周期创建数据点
+    return reversedPeriods.map(period => {
+      const dataPoint = { name: period.label };
+      
+      // 为每个供应商添加该周期的数据
+      topSuppliers.forEach(supplier => {
+        const supplierData = period.suppliers.find(s => s.supplierId === supplier.supplierId);
+        // 使用供应商名称作为key
+        const key = supplier.supplierName || supplier.supplierId;
+        dataPoint[key] = supplierData ? supplierData.count : 0;
+      });
+
+      return dataPoint;
+    });
+  }, [processedPeriods]);
+
+  // 路由码趋势图数据
+  const routeTrendData = useMemo(() => {
+    if (processedPeriods.length === 0) return [];
+
+    // 收集所有路由码，按总货量排序
+    const allRoutesMap = new Map();
+    processedPeriods.forEach(period => {
+      period.routes.forEach(route => {
+        if (!allRoutesMap.has(route.routeCode)) {
+          allRoutesMap.set(route.routeCode, {
+            routeCode: route.routeCode,
+            totalCount: 0
+          });
+        }
+        const routeInfo = allRoutesMap.get(route.routeCode);
+        routeInfo.totalCount += route.count;
+      });
+    });
+
+    // 按总货量排序，取前10个
+    const topRoutes = Array.from(allRoutesMap.values())
+      .sort((a, b) => b.totalCount - a.totalCount)
+      .slice(0, 10);
+
+    // 按时间倒序排列周期
+    const reversedPeriods = [...processedPeriods].reverse();
+
+    // 为每个周期创建数据点
+    return reversedPeriods.map(period => {
+      const dataPoint = { name: period.label };
+      
+      // 为每个路由码添加该周期的数据
+      topRoutes.forEach(route => {
+        const routeData = period.routes.find(r => r.routeCode === route.routeCode);
+        dataPoint[route.routeCode] = routeData ? routeData.count : 0;
+      });
+
+      return dataPoint;
+    });
+  }, [processedPeriods]);
+
+  // 供应商饼状图数据（使用最新周期的数据）
+  const supplierPieData = useMemo(() => {
+    if (processedPeriods.length === 0) return [];
+    
+    // 使用第一个周期（最新的）的数据
+    const latestPeriod = processedPeriods[0];
+    if (!latestPeriod || !latestPeriod.suppliers || latestPeriod.suppliers.length === 0) {
+      return [];
+    }
+
+    // 按数量排序，取前10个
+    const sortedSuppliers = [...latestPeriod.suppliers]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    return sortedSuppliers.map(supplier => ({
+      name: supplier.supplierName || supplier.supplierId,
+      value: supplier.count,
+      percentage: parseFloat(supplier.percentage || 0)
+    }));
+  }, [processedPeriods]);
+
+  // 路由码饼状图数据（使用最新周期的数据）
+  const routePieData = useMemo(() => {
+    if (processedPeriods.length === 0) return [];
+    
+    // 使用第一个周期（最新的）的数据
+    const latestPeriod = processedPeriods[0];
+    if (!latestPeriod || !latestPeriod.routes || latestPeriod.routes.length === 0) {
+      return [];
+    }
+
+    // 按数量排序，取前10个
+    const sortedRoutes = [...latestPeriod.routes]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    return sortedRoutes.map(route => ({
+      name: route.routeCode,
+      value: route.count,
+      percentage: parseFloat(route.percentage || 0)
+    }));
+  }, [processedPeriods]);
+
+  // 供应商变化量趋势图数据
+  const supplierDiffTrendData = useMemo(() => {
+    if (processedPeriods.length === 0) return [];
+
+    // 收集所有供应商，按总变化量绝对值排序
+    const allSuppliersMap = new Map();
+    processedPeriods.forEach(period => {
+      period.suppliers.forEach(supplier => {
+        if (!allSuppliersMap.has(supplier.supplierId)) {
+          allSuppliersMap.set(supplier.supplierId, {
+            supplierId: supplier.supplierId,
+            supplierName: supplier.supplierName || supplier.supplierId,
+            totalDiff: 0
+          });
+        }
+        const supplierInfo = allSuppliersMap.get(supplier.supplierId);
+        supplierInfo.totalDiff += Math.abs(supplier.supplierDiff || 0);
+      });
+    });
+
+    // 按总变化量排序，取前10个
+    const topSuppliers = Array.from(allSuppliersMap.values())
+      .sort((a, b) => b.totalDiff - a.totalDiff)
+      .slice(0, 10);
+
+    // 按时间倒序排列周期
+    const reversedPeriods = [...processedPeriods].reverse();
+
+    // 为每个周期创建数据点
+    return reversedPeriods.map(period => {
+      const dataPoint = { name: period.label };
+      
+      // 为每个供应商添加该周期的变化量数据
+      topSuppliers.forEach(supplier => {
+        const supplierData = period.suppliers.find(s => s.supplierId === supplier.supplierId);
+        // 使用供应商名称作为key
+        const key = supplier.supplierName || supplier.supplierId;
+        dataPoint[key] = supplierData ? (supplierData.supplierDiff || 0) : 0;
+      });
+
+      return dataPoint;
+    });
+  }, [processedPeriods]);
+
+  // 路由码变化量趋势图数据
+  const routeDiffTrendData = useMemo(() => {
+    if (processedPeriods.length === 0) return [];
+
+    // 收集所有路由码，按总变化量绝对值排序
+    const allRoutesMap = new Map();
+    processedPeriods.forEach(period => {
+      period.routes.forEach(route => {
+        if (!allRoutesMap.has(route.routeCode)) {
+          allRoutesMap.set(route.routeCode, {
+            routeCode: route.routeCode,
+            totalDiff: 0
+          });
+        }
+        const routeInfo = allRoutesMap.get(route.routeCode);
+        routeInfo.totalDiff += Math.abs(route.routeDiff || 0);
+      });
+    });
+
+    // 按总变化量排序，取前10个
+    const topRoutes = Array.from(allRoutesMap.values())
+      .sort((a, b) => b.totalDiff - a.totalDiff)
+      .slice(0, 10);
+
+    // 按时间倒序排列周期
+    const reversedPeriods = [...processedPeriods].reverse();
+
+    // 为每个周期创建数据点
+    return reversedPeriods.map(period => {
+      const dataPoint = { name: period.label };
+      
+      // 为每个路由码添加该周期的变化量数据
+      topRoutes.forEach(route => {
+        const routeData = period.routes.find(r => r.routeCode === route.routeCode);
+        dataPoint[route.routeCode] = routeData ? (routeData.routeDiff || 0) : 0;
+      });
+
+      return dataPoint;
+    });
+  }, [processedPeriods]);
+
+  // 饼图颜色配置
+  const COLORS = [
+    '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+    '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
+  ];
+
   if (!comparisonPeriods || comparisonPeriods.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
@@ -220,34 +444,6 @@ const VolumeDataDisplay = ({ comparisonPeriods, viewMode, onViewModeChange }) =>
 
   return (
     <div className="space-y-6">
-      {/* 视图切换 */}
-      <div className="flex justify-end">
-        <div className="inline-flex rounded-lg border border-gray-300 bg-white p-1">
-          <button
-            onClick={() => onViewModeChange('table')}
-            className={`inline-flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              viewMode === 'table'
-                ? 'bg-primary-600 text-white'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            <Table className="h-4 w-4 mr-2" />
-            表格
-          </button>
-          <button
-            onClick={() => onViewModeChange('chart')}
-            className={`inline-flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              viewMode === 'chart'
-                ? 'bg-primary-600 text-white'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            <BarChart3 className="h-4 w-4 mr-2" />
-            图表
-          </button>
-        </div>
-      </div>
-
       {viewMode === 'table' ? (
         <>
           {/* 货量对比表 */}
@@ -520,9 +716,48 @@ const VolumeDataDisplay = ({ comparisonPeriods, viewMode, onViewModeChange }) =>
         </>
       ) : (
         <>
-          {/* 货量趋势面积图 */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">货量趋势</h3>
+          {/* 维度切换按钮 */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => setChartDimension('total')}
+                className={`px-6 py-2 text-sm font-medium rounded-lg transition-all ${
+                  chartDimension === 'total'
+                    ? 'bg-primary-600 text-white shadow-md'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-primary-300'
+                }`}
+              >
+                总货量
+              </button>
+              <button
+                onClick={() => setChartDimension('supplier')}
+                className={`px-6 py-2 text-sm font-medium rounded-lg transition-all ${
+                  chartDimension === 'supplier'
+                    ? 'bg-primary-600 text-white shadow-md'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-primary-300'
+                }`}
+              >
+                供应商
+              </button>
+              <button
+                onClick={() => setChartDimension('route')}
+                className={`px-6 py-2 text-sm font-medium rounded-lg transition-all ${
+                  chartDimension === 'route'
+                    ? 'bg-primary-600 text-white shadow-md'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-primary-300'
+                }`}
+              >
+                路由码
+              </button>
+            </div>
+          </div>
+
+          {/* 总货量维度图表 */}
+          {chartDimension === 'total' && (
+            <>
+              {/* 货量趋势面积图 */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">货量趋势</h3>
             <ResponsiveContainer width="100%" height={400}>
               <AreaChart data={chartData}>
                 <defs>
@@ -603,6 +838,286 @@ const VolumeDataDisplay = ({ comparisonPeriods, viewMode, onViewModeChange }) =>
               </BarChart>
             </ResponsiveContainer>
           </div>
+            </>
+          )}
+
+          {/* 供应商维度图表 */}
+          {chartDimension === 'supplier' && (
+            <>
+              {/* 供应商趋势图 */}
+              {supplierTrendData.length > 0 && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">供应商货量趋势</h3>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <LineChart data={supplierTrendData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="#6B7280"
+                        tick={{ fill: '#6B7280' }}
+                      />
+                      <YAxis 
+                        stroke="#6B7280"
+                        tick={{ fill: '#6B7280' }}
+                      />
+                      <Tooltip 
+                        formatter={(value, name) => [`${name}: ${value.toLocaleString()}`, '']}
+                        contentStyle={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          border: '1px solid #E5E7EB',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: '20px' }}
+                        iconType="line"
+                      />
+                      {supplierTrendData.length > 0 && (() => {
+                        // 获取所有供应商名称（排除'name'字段）
+                        const supplierNames = Object.keys(supplierTrendData[0]).filter(key => key !== 'name');
+                        return supplierNames.map((supplierName, index) => (
+                          <Line
+                            key={supplierName}
+                            type="monotone"
+                            dataKey={supplierName}
+                            stroke={COLORS[index % COLORS.length]}
+                            strokeWidth={2}
+                            dot={{ r: 4 }}
+                            activeDot={{ r: 6 }}
+                            name={supplierName}
+                          />
+                        ));
+                      })()}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* 供应商饼状图 */}
+              {supplierPieData.length > 0 && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">供应商货量分布（最新周期）</h3>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <PieChart>
+                      <Pie
+                        data={supplierPieData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percentage }) => `${name}: ${percentage.toFixed(1)}%`}
+                        outerRadius={120}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {supplierPieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        formatter={(value, name) => [`${name}: ${value.toLocaleString()}`, '']}
+                        contentStyle={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          border: '1px solid #E5E7EB',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* 供应商变化量趋势图 */}
+              {supplierDiffTrendData.length > 0 && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">供应商变化量趋势</h3>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <LineChart data={supplierDiffTrendData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="#6B7280"
+                        tick={{ fill: '#6B7280' }}
+                      />
+                      <YAxis 
+                        stroke="#6B7280"
+                        tick={{ fill: '#6B7280' }}
+                      />
+                      <Tooltip 
+                        formatter={(value, name) => [`${name}: ${value >= 0 ? '+' : ''}${value.toLocaleString()}`, '']}
+                        contentStyle={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          border: '1px solid #E5E7EB',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: '20px' }}
+                        iconType="line"
+                      />
+                      {supplierDiffTrendData.length > 0 && (() => {
+                        // 获取所有供应商名称（排除'name'字段）
+                        const supplierNames = Object.keys(supplierDiffTrendData[0]).filter(key => key !== 'name');
+                        return supplierNames.map((supplierName, index) => (
+                          <Line
+                            key={supplierName}
+                            type="monotone"
+                            dataKey={supplierName}
+                            stroke={COLORS[index % COLORS.length]}
+                            strokeWidth={2}
+                            dot={{ r: 4 }}
+                            activeDot={{ r: 6 }}
+                            name={supplierName}
+                          />
+                        ));
+                      })()}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* 路由码维度图表 */}
+          {chartDimension === 'route' && (
+            <>
+              {/* 路由码趋势图 */}
+              {routeTrendData.length > 0 && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">路由码货量趋势</h3>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <LineChart data={routeTrendData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="#6B7280"
+                        tick={{ fill: '#6B7280' }}
+                      />
+                      <YAxis 
+                        stroke="#6B7280"
+                        tick={{ fill: '#6B7280' }}
+                      />
+                      <Tooltip 
+                        formatter={(value, name) => [`${name}: ${value.toLocaleString()}`, '']}
+                        contentStyle={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          border: '1px solid #E5E7EB',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: '20px' }}
+                        iconType="line"
+                      />
+                      {routeTrendData.length > 0 && (() => {
+                        // 获取所有路由码（排除'name'字段）
+                        const routeCodes = Object.keys(routeTrendData[0]).filter(key => key !== 'name');
+                        return routeCodes.map((routeCode, index) => (
+                          <Line
+                            key={routeCode}
+                            type="monotone"
+                            dataKey={routeCode}
+                            stroke={COLORS[index % COLORS.length]}
+                            strokeWidth={2}
+                            dot={{ r: 4 }}
+                            activeDot={{ r: 6 }}
+                            name={routeCode}
+                          />
+                        ));
+                      })()}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* 路由码饼状图 */}
+              {routePieData.length > 0 && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">路由码货量分布（最新周期）</h3>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <PieChart>
+                      <Pie
+                        data={routePieData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percentage }) => `${name}: ${percentage.toFixed(1)}%`}
+                        outerRadius={120}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {routePieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        formatter={(value, name) => [`${name}: ${value.toLocaleString()}`, '']}
+                        contentStyle={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          border: '1px solid #E5E7EB',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* 路由码变化量趋势图 */}
+              {routeDiffTrendData.length > 0 && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">路由码变化量趋势</h3>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <LineChart data={routeDiffTrendData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="#6B7280"
+                        tick={{ fill: '#6B7280' }}
+                      />
+                      <YAxis 
+                        stroke="#6B7280"
+                        tick={{ fill: '#6B7280' }}
+                      />
+                      <Tooltip 
+                        formatter={(value, name) => [`${name}: ${value >= 0 ? '+' : ''}${value.toLocaleString()}`, '']}
+                        contentStyle={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          border: '1px solid #E5E7EB',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: '20px' }}
+                        iconType="line"
+                      />
+                      {routeDiffTrendData.length > 0 && (() => {
+                        // 获取所有路由码（排除'name'字段）
+                        const routeCodes = Object.keys(routeDiffTrendData[0]).filter(key => key !== 'name');
+                        return routeCodes.map((routeCode, index) => (
+                          <Line
+                            key={routeCode}
+                            type="monotone"
+                            dataKey={routeCode}
+                            stroke={COLORS[index % COLORS.length]}
+                            strokeWidth={2}
+                            dot={{ r: 4 }}
+                            activeDot={{ r: 6 }}
+                            name={routeCode}
+                          />
+                        ));
+                      })()}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </>
+          )}
 
         </>
       )}

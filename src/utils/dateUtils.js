@@ -92,3 +92,35 @@ export const getLastWeekRange = (region = 'SYD') => {
   return getWeekRange(1, region);
 };
 
+/**
+ * 格式化时间周期显示（用于表格展示）
+ * @param {string} timePeriod - 时间周期，格式为 YYYY-MM-DD (周) 或 YYYY-MM (月) 或 YYYY-MM-DD (天)
+ * @param {string} timeUnit - 时间单位：'day' | 'week' | 'month'
+ * @returns {string} 格式化后的时间显示
+ */
+export const formatTimePeriod = (timePeriod, timeUnit) => {
+  if (!timePeriod) return '';
+  
+  if (timeUnit === 'week') {
+    // timePeriod 是周一的日期 (YYYY-MM-DD)
+    try {
+      const monday = parseISO(timePeriod);
+      const sunday = endOfWeek(monday, { weekStartsOn: 1 });
+      return `${format(monday, 'yyyy-MM-dd')} ~ ${format(sunday, 'yyyy-MM-dd')}`;
+    } catch (error) {
+      return timePeriod;
+    }
+  } else if (timeUnit === 'month') {
+    // timePeriod 是年月 (YYYY-MM)
+    try {
+      const [year, month] = timePeriod.split('-');
+      return `${year}年${parseInt(month)}月`;
+    } catch (error) {
+      return timePeriod;
+    }
+  } else {
+    // timeUnit === 'day'，直接返回日期
+    return timePeriod;
+  }
+};
+

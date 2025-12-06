@@ -209,6 +209,41 @@ router.get('/inbound-scans', async (req, res) => {
   }
 });
 
+// 获取最新上传数据的日期和数量
+router.get('/inbound-scans/latest', async (req, res) => {
+  try {
+    // 获取最新日期的记录（按scanDate排序，scanDate是字符串格式 YYYY-MM-DD）
+    const latestRecord = await InboundScanRecord.findOne()
+      .sort({ scanDate: -1 })
+      .select('scanDate')
+      .lean();
+    
+    if (!latestRecord || !latestRecord.scanDate) {
+      return res.json({
+        latestUploadDate: null,
+        recordCount: 0,
+        message: '暂无数据'
+      });
+    }
+    
+    // scanDate已经是字符串格式 YYYY-MM-DD，直接使用
+    const latestDateStr = latestRecord.scanDate;
+    
+    // 统计该日期的记录数量（字符串比较即可）
+    const count = await InboundScanRecord.countDocuments({
+      scanDate: latestDateStr
+    });
+    
+    res.json({
+      latestUploadDate: latestDateStr,
+      recordCount: count
+    });
+  } catch (error) {
+    console.error('获取最新到件扫描记录失败:', error);
+    res.status(500).json({ message: '获取最新记录失败', error: error.message });
+  }
+});
+
 // 获取数据聚合统计（按天聚合）
 router.get('/inbound-scans/aggregate', async (req, res) => {
   try {
