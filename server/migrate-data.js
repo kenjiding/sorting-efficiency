@@ -1,8 +1,8 @@
 // 数据迁移脚本 - Node.js 版本（如果 MongoDB Tools 不可用）
 // 使用方法：
-// 1. 在 server 目录运行：node migrate-data.js export
+// 1. 在 server 目录运行：node ../migrate-data.js export
 // 2. 将生成的 backup 文件夹复制到新电脑
-// 3. 在新电脑的 server 目录运行：node migrate-data.js import
+// 3. 在新电脑的 server 目录运行：node ../migrate-data.js import
 
 import { MongoClient } from 'mongodb';
 import fs from 'fs';
@@ -12,8 +12,9 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 项目根目录（server 的上一级）
-const projectRoot = path.join(__dirname, '..');
+// 如果从 server 目录运行，需要调整路径
+const isInServerDir = __dirname.includes('server');
+const projectRoot = isInServerDir ? path.join(__dirname, '..') : __dirname;
 
 const DB_NAME = 'sorting-management';
 const COLLECTIONS = ['suppliers', 'routes', 'supplierroutemappings'];
@@ -181,9 +182,9 @@ const main = async () => {
       console.log('  导入数据: node migrate-data.js import');
       console.log('');
       console.log('说明:');
-      console.log('  1. 在 server 目录运行: node migrate-data.js export');
+      console.log('  1. 在源电脑运行: node migrate-data.js export');
       console.log('  2. 将 backup 文件夹复制到目标电脑');
-      console.log('  3. 在目标电脑的 server 目录运行: node migrate-data.js import');
+      console.log('  3. 在目标电脑运行: node migrate-data.js import');
       process.exit(1);
   }
 };
