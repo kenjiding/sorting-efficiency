@@ -266,7 +266,7 @@ const AIAnalysisModal = ({ isOpen, onClose, prompt, title = 'AI数据分析' }) 
           <div className="flex flex-col items-center justify-center py-12">
             <Loader2 className="h-8 w-8 text-primary-600 animate-spin mb-4" />
             <p className="text-sm text-gray-600">
-              {currentProvider ? `${currentProvider} 正在分析数据，请稍候...` : 'AI正在分析数据，请稍候...'}
+              {currentProvider ? `${currentProvider} AI LLM正在分析数据，请稍候...` : 'AI正在分析数据，请稍候...'}
             </p>
           </div>
         )}

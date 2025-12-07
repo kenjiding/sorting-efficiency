@@ -48,7 +48,7 @@ const VolumeDataModule = () => {
   const [comparisonPeriods, setComparisonPeriods] = useState([]); // 多个对比周期的数据
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [viewMode, setViewMode] = useState('table'); // 'table' or 'chart'
+  const [viewMode, setViewMode] = useState('chart'); // 'table' or 'chart'
   const loadingRef = useRef(false); // 用于防止重复请求
   const mountedRef = useRef(false); // 用于标记组件是否已挂载
   const [showAIModal, setShowAIModal] = useState(false);

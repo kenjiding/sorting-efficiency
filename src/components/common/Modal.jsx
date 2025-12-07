@@ -47,11 +47,11 @@ const Modal = ({
 
   return createPortal(
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto"
-      style={{ position: 'fixed' }}
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      style={{ position: 'fixed', overflow: 'hidden' }}
       onClick={handleBackdropClick}
     >
-      <div className={`bg-white rounded-xl shadow-2xl ${maxWidth} w-full my-8 max-h-[90vh] flex flex-col`}>
+      <div className={`bg-white rounded-xl shadow-2xl ${maxWidth} w-full max-h-[90vh] flex flex-col`}>
         {/* 头部 - 固定 */}
         {title && (
           <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-xl flex-shrink-0">
@@ -74,7 +74,7 @@ const Modal = ({
         )}
         
         {/* 内容区域 - 可滚动 */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
           {children}
         </div>
 
