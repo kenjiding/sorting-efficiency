@@ -298,12 +298,19 @@ router.get('/inbound-scans/aggregate', async (req, res) => {
     // 构建路由到供应商的映射
     const routeToSupplier = {};
     mappings.forEach(mapping => {
+      // 检查 supplierId 是否存在（populate 可能返回 null 如果引用的文档不存在）
+      // 使用可选链操作符安全地访问属性
+      if (!mapping.supplierId?._id) {
+        console.warn(`警告: 路由映射 ${mapping.routeCode || '未知'} 的供应商引用无效，跳过`);
+        return;
+      }
+      
       if (!routeToSupplier[mapping.routeCode]) {
         routeToSupplier[mapping.routeCode] = [];
       }
       routeToSupplier[mapping.routeCode].push({
         supplierId: mapping.supplierId._id.toString(),
-        supplierName: mapping.supplierId.name
+        supplierName: mapping.supplierId.name || '未知供应商'
       });
     });
 
