@@ -46,15 +46,8 @@ const employeeSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     }
-  }],
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  }
+  }]
+  // 注意：timestamps: true 会自动添加 createdAt 和 updatedAt 字段，不需要手动定义
 }, {
   timestamps: true
 });
@@ -62,11 +55,7 @@ const employeeSchema = new mongoose.Schema({
 // 创建复合唯一索引：region + employeeId
 employeeSchema.index({ region: 1, employeeId: 1 }, { unique: true });
 
-// 更新时间戳
-employeeSchema.pre('save', function(next) {
-  this.updatedAt = Date.now();
-  next();
-});
+// 注意：timestamps: true 会自动处理 createdAt 和 updatedAt，不需要手动更新
 
 // 添加角色变更方法
 employeeSchema.methods.changeRole = function(newRole) {

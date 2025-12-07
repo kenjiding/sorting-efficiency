@@ -561,37 +561,91 @@ const WageSalary = () => {
 
     setIsUploading(true);
     try {
-      // 转换所有日期为标准格式
-      const recordsToSubmit = uploadedData.map((record) => {
+      // 转换所有日期为标准格式，并验证数据
+      const recordsToSubmit = [];
+      const validationErrors = [];
+
+      for (let i = 0; i < uploadedData.length; i++) {
+        const record = uploadedData[i];
         const {
           isPublicHolidayRow,
           isSortingRow,
           ...rest
         } = record;
 
+        // 验证必填字段（人员编号可以为空，用于试工人员）
+        if (!record.name || !record.date || !record.totalHours) {
+          const missingFields = [];
+          if (!record.name) missingFields.push('姓名');
+          if (!record.date) missingFields.push('日期');
+          if (!record.totalHours) missingFields.push('总时长');
+          
+          validationErrors.push({
+            index: i + 1,
+            employeeId: record.employeeId || '试工',
+            name: record.name || '未知',
+            error: `缺少必填字段: ${missingFields.join('、')}`
+          });
+          continue;
+        }
+
+        // 验证日期格式
+        const standardDate = convertDateToStandard(record.date);
+        if (!standardDate || standardDate.trim() === '') {
+          validationErrors.push({
+            index: i + 1,
+            employeeId: record.employeeId || '试工',
+            name: record.name,
+            error: `日期格式无效: ${record.date}`
+          });
+          continue;
+        }
+
+        // 如果人员编号为空（试工人员），生成临时ID
+        let finalEmployeeId = record.employeeId;
+        if (!finalEmployeeId || finalEmployeeId.trim() === '') {
+          // 使用姓名和日期生成临时ID，格式：TEMP-{姓名前10字符}-{日期}
+          const namePart = record.name.trim().substring(0, 10).replace(/\s+/g, '-');
+          const datePart = standardDate.replace(/-/g, '');
+          finalEmployeeId = `TEMP-${namePart}-${datePart}`;
+        }
+
         // 所有日期都根据 weekendOption 来设置（不再区分周末和工作日）
         let recordIsPublicHoliday = false;
         let recordIsSorting = false;
 
-          if (record.weekendOption === 'publicHoliday') {
-            recordIsPublicHoliday = true;
-            recordIsSorting = false;
-          } else if (record.weekendOption === 'sorting') {
-            recordIsPublicHoliday = false;
-            recordIsSorting = true;
-          } else {
+        if (record.weekendOption === 'publicHoliday') {
+          recordIsPublicHoliday = true;
+          recordIsSorting = false;
+        } else if (record.weekendOption === 'sorting') {
+          recordIsPublicHoliday = false;
+          recordIsSorting = true;
+        } else {
           // 'regularWeekend' 或其他值，表示不分拣
-            recordIsPublicHoliday = false;
-            recordIsSorting = false;
+          recordIsPublicHoliday = false;
+          recordIsSorting = false;
         }
 
-        return {
+        recordsToSubmit.push({
           ...rest,
-          date: convertDateToStandard(record.date),
+          employeeId: finalEmployeeId, // 使用处理后的员工ID（可能是临时ID）
+          date: standardDate,
           isPublicHoliday: recordIsPublicHoliday,
           isSorting: recordIsSorting
-        };
-      });
+        });
+      }
+
+      // 如果有验证错误，先显示错误信息
+      if (validationErrors.length > 0) {
+        const errorMsg = `数据验证失败，发现 ${validationErrors.length} 条无效记录：\n\n` +
+          validationErrors.slice(0, 10).map(err => 
+            `第 ${err.index} 行 - ${err.name} (${err.employeeId}): ${err.error}`
+          ).join('\n') +
+          (validationErrors.length > 10 ? `\n...还有 ${validationErrors.length - 10} 条错误` : '');
+        showMessage(errorMsg, 'error');
+        setIsUploading(false);
+        return;
+      }
 
       const response = await fetch(`${API_BASE_URL}/records/upload`, {
         method: 'POST',
@@ -608,21 +662,41 @@ const WageSalary = () => {
       const result = await response.json();
       
       if (response.ok) {
-        showMessage(
-          `上传成功！成功: ${result.success} 条，失败: ${result.failed} 条`,
-          'success'
-        );
+        // 显示详细的成功/失败信息
+        if (result.failed > 0 && result.errors && result.errors.length > 0) {
+          // 如果有失败记录，显示前5条错误信息
+          const errorMessages = result.errors.slice(0, 5).map(err => 
+            `${err.name || err.employeeId || '未知'}: ${err.error}`
+          ).join('\n');
+          const moreErrors = result.errors.length > 5 ? `\n...还有 ${result.errors.length - 5} 条错误` : '';
+          showMessage(
+            `上传完成！成功: ${result.success} 条，失败: ${result.failed} 条\n\n错误详情：\n${errorMessages}${moreErrors}`,
+            'error'
+          );
+        } else {
+          showMessage(
+            `上传成功！成功: ${result.success} 条，失败: ${result.failed} 条`,
+            'success'
+          );
+        }
         setUploadBatchId(result.uploadBatchId);
         await loadWageRecords();
         await loadEmployees();
         await loadStatistics();
         setUploadedData([]);
       } else {
-        showMessage(result.message || '上传失败', 'error');
+        // 显示详细的错误信息
+        const errorMsg = result.message || '上传失败';
+        const errorDetails = result.errors && result.errors.length > 0 
+          ? '\n\n错误详情：\n' + result.errors.slice(0, 10).map(err => 
+              `${err.name || err.employeeId || '未知'}: ${err.error || '未知错误'}`
+            ).join('\n')
+          : '';
+        showMessage(errorMsg + errorDetails, 'error');
       }
     } catch (error) {
       console.error('上传失败:', error);
-      showMessage('上传失败', 'error');
+      showMessage(`上传失败: ${error.message || '网络错误'}`, 'error');
     } finally {
       setIsUploading(false);
     }
@@ -956,20 +1030,20 @@ const WageSalary = () => {
     <div className="space-y-6">
       {/* 消息提示 */}
       {message && (
-        <div className={`rounded-lg p-4 flex items-center gap-3 ${
+        <div className={`rounded-lg p-4 flex items-start gap-3 ${
           message.type === 'success' 
             ? 'bg-green-50 text-green-800 border border-green-200' 
             : 'bg-red-50 text-red-800 border border-red-200'
         }`}>
           {message.type === 'success' ? (
-            <CheckCircle className="w-5 h-5" />
+            <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
           ) : (
-            <AlertCircle className="w-5 h-5" />
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
           )}
-          <span>{message.text}</span>
+          <span className="flex-1 whitespace-pre-wrap break-words">{message.text}</span>
           <button
             onClick={() => setMessage(null)}
-            className="ml-auto hover:opacity-70"
+            className="ml-auto hover:opacity-70 flex-shrink-0"
           >
             <X className="w-4 h-4" />
           </button>

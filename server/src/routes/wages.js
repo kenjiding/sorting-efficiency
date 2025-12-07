@@ -57,20 +57,46 @@ function calculateDecimalHours(totalHours) {
 
 // 解析日期
 function parseDate(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string' || dateStr.trim() === '') {
+    throw new Error('日期不能为空');
+  }
+
   try {
+    // 优先尝试直接解析（适用于 YYYY-MM-DD 格式）
     let recordDate = new Date(dateStr);
+    
+    // 检查日期是否有效
     if (isNaN(recordDate.getTime())) {
+      // 如果直接解析失败，尝试手动解析
       const parts = dateStr.toString().trim().split(/[-/]/);
       if (parts.length === 3) {
-        recordDate = new Date(parts[0], parts[1] - 1, parts[2]);
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1; // 月份从0开始
+        const day = parseInt(parts[2], 10);
+        
+        // 验证日期是否有效
+        if (isNaN(year) || isNaN(month) || isNaN(day)) {
+          throw new Error(`日期格式无效: ${dateStr}`);
+        }
+        
+        recordDate = new Date(year, month, day);
+        
+        // 再次验证日期是否有效（处理2月30日等情况）
+        if (isNaN(recordDate.getTime()) || 
+            recordDate.getFullYear() !== year ||
+            recordDate.getMonth() !== month ||
+            recordDate.getDate() !== day) {
+          throw new Error(`日期无效: ${dateStr}`);
+        }
       } else {
-        throw new Error('Invalid date format');
+        throw new Error(`日期格式无效: ${dateStr}，期望格式: YYYY-MM-DD 或 YYYY/MM/DD`);
       }
     }
+    
     return recordDate;
   } catch (err) {
-    console.error('日期解析失败:', dateStr, err);
-    return new Date();
+    console.error('日期解析失败:', dateStr, err.message);
+    throw err; // 抛出错误而不是返回默认日期
   }
 }
 
@@ -192,23 +218,54 @@ router.post('/records/upload', async (req, res) => {
           isSorting: recordIsSortingInput
         } = record;
 
-        // 验证必填字段
-        if (!employeeId || !name || !date || !totalHours) {
+        // 验证必填字段（人员编号可以为空，用于试工人员）
+        if (!name || !date || !totalHours) {
+          const missingFields = [];
+          if (!name) missingFields.push('姓名');
+          if (!date) missingFields.push('日期');
+          if (!totalHours) missingFields.push('总时长');
+          
           errors.push({
-            employeeId,
-            name,
-            error: '缺少必填字段'
+            employeeId: employeeId || '试工',
+            name: name || '未知',
+            error: `缺少必填字段: ${missingFields.join('、')}`
           });
           continue;
         }
 
+        // 解析日期（需要在生成临时ID之前）
+        let recordDate;
+        try {
+          recordDate = parseDate(date);
+        } catch (dateError) {
+          errors.push({
+            employeeId: employeeId || '试工',
+            name: name || '未知',
+            error: `日期解析失败: ${dateError.message}`
+          });
+          continue;
+        }
+
+        // 如果人员编号为空（试工人员），生成临时ID
+        let finalEmployeeId = employeeId;
+        if (!finalEmployeeId || finalEmployeeId.trim() === '') {
+          // 使用姓名和日期生成临时ID，格式：TEMP-{姓名前10字符}-{日期}
+          const namePart = name.trim().substring(0, 10).replace(/\s+/g, '-');
+          // 从解析后的日期生成日期字符串
+          const year = recordDate.getFullYear();
+          const month = String(recordDate.getMonth() + 1).padStart(2, '0');
+          const day = String(recordDate.getDate()).padStart(2, '0');
+          const dateStr = `${year}${month}${day}`;
+          finalEmployeeId = `TEMP-${namePart}-${dateStr}`;
+        }
+
         // 查找或创建员工
-        let employee = await Employee.findOne({ region, employeeId });
+        let employee = await Employee.findOne({ region, employeeId: finalEmployeeId });
         
         if (!employee) {
           employee = new Employee({
             region,
-            employeeId,
+            employeeId: finalEmployeeId,
             name,
             surname,
             nickname,
@@ -259,13 +316,10 @@ router.post('/records/upload', async (req, res) => {
         // 计算总工资
         const totalWage = totalHoursDecimal * hourlyRate;
 
-        // 解析日期
-        const recordDate = parseDate(date);
-
         // 检查是否已存在该员工该日期的记录
         const existingRecord = await WageRecord.findOne({
           region,
-          employeeId,
+          employeeId: finalEmployeeId,
           date: recordDate
         });
 
@@ -293,7 +347,7 @@ router.post('/records/upload', async (req, res) => {
           // 创建新记录
           const wageRecord = new WageRecord({
             region,
-            employeeId,
+            employeeId: finalEmployeeId,
             name,
             surname,
             nickname,
