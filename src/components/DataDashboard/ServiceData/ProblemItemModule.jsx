@@ -8,8 +8,10 @@ import { parseProblemItemExcel } from '../../../utils/serviceDataExcelUtils';
 import apiClient from '../../../api/apiClient';
 import { formatTimePeriod } from '../../../utils/dateUtils';
 import { buildServiceDataPrompt } from '../../../utils/openaiUtils';
+import { useToken } from '../../../contexts/TokenContext';
 
 const ProblemItemModule = () => {
+  const { token } = useToken(); // 获取全局 token
   const [uploadStatus, setUploadStatus] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [data, setData] = useState([]);
@@ -33,10 +35,10 @@ const ProblemItemModule = () => {
   const [timeUnit, setTimeUnit] = useState('day'); // 'day' | 'week' | 'month'
   const [timeRange, setTimeRange] = useState(() => {
     const today = new Date();
-    const twoWeeksAgo = new Date(today);
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // 7天（包括今天）
     return {
-      start: twoWeeksAgo.toISOString().split('T')[0],
+      start: sevenDaysAgo.toISOString().split('T')[0],
       end: today.toISOString().split('T')[0]
     };
   });
@@ -83,13 +85,12 @@ const ProblemItemModule = () => {
 
       setUploadStatus({
         type: 'success',
-        message: `成功上传 ${result.validRows} 条记录`,
+        message: `成功上传 ${result.validRows} 条记录（注意：当前页面显示的是外部接口数据）`,
         onClose: () => setUploadStatus(null)
       });
 
-      // 重新加载数据
+      // 重新加载数据（从外部接口）
       loadData();
-      loadLatestUploadInfo();
     } catch (error) {
       console.error('文件上传失败:', error);
       setUploadStatus({
@@ -113,28 +114,44 @@ const ProblemItemModule = () => {
   };
 
 
-  // 加载数据
+  // 加载数据 - 从MongoDB获取
   const loadData = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.serviceData.getProblemItems({
+      console.log(`🔍 从MongoDB加载问题件数据...`);
+      
+      const startTime = performance.now();
+      
+      // 调用后端MongoDB聚合接口
+      const result = await apiClient.serviceData.getProblemItems({
         dimension,
         timeUnit,
         startDate: timeRange.start,
         endDate: timeRange.end
       });
-      setData(response || []);
+      
+      const requestTime = performance.now() - startTime;
+      console.log(`⏱️ MongoDB查询响应时间: ${requestTime.toFixed(0)}ms`);
+      console.log(`✅ 获取到聚合数据: ${result.length} 条`);
+      
+      setData(result);
     } catch (error) {
-      console.error('加载数据失败:', error);
+      console.error('❌ 加载数据失败:', error);
       setData([]);
+      
+      // 如果是没有数据的错误，给出友好提示
+      if (error.message.includes('请提供开始日期和结束日期')) {
+        alert('请先设置时间范围');
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  // 注意：现在数据由后端聚合，不再需要前端聚合函数
+
   useEffect(() => {
     loadData();
-    loadLatestUploadInfo();
     // 重置显示数量当筛选条件改变时
     setDisplayLimit(INITIAL_DISPLAY_COUNT);
     // 重置排序状态
@@ -335,68 +352,6 @@ const ProblemItemModule = () => {
 
   return (
     <div className="space-y-6">
-      {/* 文件上传 */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between gap-4">
-          <h4 className="text-md font-semibold text-gray-900">上传DA问题件审核文件</h4>
-          <div className="flex items-center gap-4">
-            <input
-              ref={fileInputRef}
-              type="file"
-        accept=".xlsx,.xls"
-              onChange={(e) => {
-                const file = e.target.files[0];
-                if (file) {
-                  handleFileUpload(file);
-                }
-                e.target.value = '';
-              }}
-              className="hidden"
-              disabled={uploading}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              {uploading ? '上传中...' : '选择文件'}
-            </button>
-        {latestUploadInfo && latestUploadInfo.latestUploadDate && (
-            <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-              <span className="text-sm font-medium text-blue-900">最新数据：</span>
-              <span className="text-sm text-blue-700">
-                {new Date(latestUploadInfo.latestUploadDate).toLocaleDateString('zh-CN', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
-              </span>
-              <span className="text-sm font-semibold text-blue-600">
-                ({latestUploadInfo.recordCount} 条)
-              </span>
-            </div>
-            )}
-          </div>
-        </div>
-        {uploadStatus && (
-          <div className={`mt-4 flex items-center gap-2 ${
-            uploadStatus.type === 'success' ? 'text-green-600' : 
-            uploadStatus.type === 'error' ? 'text-red-600' : 
-            'text-blue-600'
-          }`}>
-            {uploadStatus.type === 'success' && <CheckCircle className="h-5 w-5" />}
-            {uploadStatus.type === 'error' && <AlertCircle className="h-5 w-5" />}
-            <span className="text-sm">{uploadStatus.message}</span>
-            <button
-              onClick={() => setUploadStatus(null)}
-              className="ml-2 text-gray-400 hover:text-gray-600"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-      </div>
 
       {/* 筛选面板 */}
       <FilterPanel
@@ -407,6 +362,7 @@ const ProblemItemModule = () => {
         onTimeUnitChange={setTimeUnit}
         timeRange={timeRange}
         onTimeRangeChange={setTimeRange}
+        timeRangeHint=""
         aiAnalysisButton={
           <button
             onClick={handleAIAnalysis}

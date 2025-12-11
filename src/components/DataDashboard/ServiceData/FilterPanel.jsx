@@ -8,7 +8,8 @@ const FilterPanel = ({
   onTimeUnitChange,
   timeRange,
   onTimeRangeChange,
-  aiAnalysisButton // 可选的AI分析按钮
+  aiAnalysisButton, // 可选的AI分析按钮
+  timeRangeHint // 可选的时间范围提示信息
 }) => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-4">
@@ -100,6 +101,11 @@ const FilterPanel = ({
                 className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               />
             </div>
+            {timeRangeHint && (
+              <p className="mt-2 text-xs text-orange-600">
+                {timeRangeHint}
+              </p>
+            )}
           </div>
         ) : null}
         {aiAnalysisButton && (

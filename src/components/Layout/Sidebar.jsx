@@ -12,7 +12,8 @@ import {
   Crown,
   DollarSign,
   ScanLine,
-  LayoutDashboard
+  LayoutDashboard,
+  Settings
 } from 'lucide-react';
 import useStore from '../../store/useStore';
 
@@ -74,6 +75,14 @@ const Sidebar = () => {
       label: '数据报表看板',
       icon: LayoutDashboard,
       description: '货量数据报表和分析',
+      requiredRole: null
+    },
+    {
+      id: 'settings',
+      path: '/settings',
+      label: '系统设置',
+      icon: Settings,
+      description: 'Token配置和系统设置',
       requiredRole: null
     }
   ];

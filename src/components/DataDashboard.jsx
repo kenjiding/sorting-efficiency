@@ -3,6 +3,7 @@ import { BarChart3, Package, DollarSign, TrendingUp } from 'lucide-react';
 import VolumeDataModule from './DataDashboard/VolumeDataModule';
 import CostDataModule from './DataDashboard/CostDataModule';
 import ServiceDataModule from './DataDashboard/ServiceDataModule';
+import DataSyncButton from './common/DataSyncButton';
 
 const DataDashboard = () => {
   const [activeTab, setActiveTab] = useState('volume'); // 'volume' | 'cost' | 'service' | 'other'
@@ -44,6 +45,18 @@ const DataDashboard = () => {
               <p className="mt-1 text-sm text-gray-600">
                 货量数据、成本数据、服务数据 - 支持筛选和排序
               </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* 全局同步按钮 */}
+              <DataSyncButton 
+                syncType="all"
+                label="同步最新数据"
+                showStatus={true}
+                onSyncComplete={(result) => {
+                  console.log('全局数据同步完成:', result);
+                  // 可以在这里触发数据刷新
+                }}
+              />
             </div>
           </div>
         </div>

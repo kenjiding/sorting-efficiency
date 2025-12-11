@@ -8,6 +8,7 @@ import EfficiencyAnalysis from './components/EfficiencyAnalysis';
 import ManagerDashboard from './components/ManagerDashboard';
 import WageSalary from './components/WageSalary';
 import DataDashboard from './components/DataDashboard';
+import Settings from './components/Settings';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './components/Login';
 import useStore from './store/useStore';
@@ -112,6 +113,7 @@ function App() {
                     <Route path="/efficiency" element={<EfficiencyAnalysis />} />
                     <Route path="/wage-salary" element={<WageSalary />} />
                     <Route path="/dashboard" element={<DataDashboard />} />
+                    <Route path="/settings" element={<Settings />} />
                     <Route 
                       path="/manager" 
                       element={

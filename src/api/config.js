@@ -68,6 +68,18 @@ export const API_ENDPOINTS = {
   COMPLAINTS: `${API_BASE_URL}/service-data/complaints`,
   COMPLAINTS_UPLOAD: `${API_BASE_URL}/service-data/complaints/upload`,
   
+  // 外部接口代理
+  EXTERNAL_API: `${API_BASE_URL}/external`,
+  EXTERNAL_API_POST: `${API_BASE_URL}/external/post`,
+  EXTERNAL_API_GET: `${API_BASE_URL}/external/get`,
+  EXTERNAL_API_REQUEST: `${API_BASE_URL}/external/request`,
+  
+  // 数据同步
+  SYNC_STATUS: `${API_BASE_URL}/sync/status`,
+  SYNC_INBOUND: `${API_BASE_URL}/sync/inbound`,
+  SYNC_PROBLEM_ITEMS: `${API_BASE_URL}/sync/problem-items`,
+  SYNC_ALL: `${API_BASE_URL}/sync/all`,
+  
   // 健康检查
   HEALTH: `${API_BASE_URL.replace('/api', '')}/health`,
 };

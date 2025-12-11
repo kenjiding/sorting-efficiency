@@ -13,6 +13,8 @@ import wagesRouter from './routes/wages.js';
 import scanRecordsRouter from './routes/scanRecords.js';
 import inboundDataRouter from './routes/inboundData.js';
 import serviceDataRouter from './routes/serviceData.js';
+import externalApiRouter from './routes/externalApi.js';
+import dataSyncRouter from './routes/dataSync.js';
 
 dotenv.config();
 
@@ -105,6 +107,8 @@ app.use('/api/wages', wagesRouter);
 app.use('/api/scan-records', scanRecordsRouter);
 app.use('/api/inbound-data', inboundDataRouter);
 app.use('/api/service-data', serviceDataRouter);
+app.use('/api/external', externalApiRouter);
+app.use('/api/sync', dataSyncRouter);
 
 app.get('/health', (req, res) => {
   res.json({

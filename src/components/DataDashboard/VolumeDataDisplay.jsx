@@ -45,27 +45,35 @@ const VolumeDataDisplay = ({ comparisonPeriods, viewMode, onViewModeChange }) =>
     };
 
     data.forEach(day => {
-      weekData.total += day.total;
+      if (!day) return;
       
-      // 合并路由数据
-      day.byRoute.forEach(route => {
-        if (!weekData.byRoute[route.routeCode]) {
-          weekData.byRoute[route.routeCode] = { routeCode: route.routeCode, count: 0 };
-        }
-        weekData.byRoute[route.routeCode].count += route.count;
-      });
+      weekData.total += day.total || 0;
+      
+      // 合并路由数据（添加安全检查）
+      if (Array.isArray(day.byRoute)) {
+        day.byRoute.forEach(route => {
+          if (!route || !route.routeCode) return;
+          if (!weekData.byRoute[route.routeCode]) {
+            weekData.byRoute[route.routeCode] = { routeCode: route.routeCode, count: 0 };
+          }
+          weekData.byRoute[route.routeCode].count += route.count || 0;
+        });
+      }
 
-      // 合并供应商数据
-      day.bySupplier.forEach(supplier => {
-        if (!weekData.bySupplier[supplier.supplierId]) {
-          weekData.bySupplier[supplier.supplierId] = {
-            supplierId: supplier.supplierId,
-            supplierName: supplier.supplierName,
-            count: 0
-          };
-        }
-        weekData.bySupplier[supplier.supplierId].count += supplier.count;
-      });
+      // 合并供应商数据（添加安全检查）
+      if (Array.isArray(day.bySupplier)) {
+        day.bySupplier.forEach(supplier => {
+          if (!supplier || !supplier.supplierId) return;
+          if (!weekData.bySupplier[supplier.supplierId]) {
+            weekData.bySupplier[supplier.supplierId] = {
+              supplierId: supplier.supplierId,
+              supplierName: supplier.supplierName || supplier.supplierId,
+              count: 0
+            };
+          }
+          weekData.bySupplier[supplier.supplierId].count += supplier.count || 0;
+        });
+      }
     });
 
     // 转换为数组格式并排序
@@ -302,44 +310,134 @@ const VolumeDataDisplay = ({ comparisonPeriods, viewMode, onViewModeChange }) =>
   const supplierPieData = useMemo(() => {
     if (processedPeriods.length === 0) return [];
     
-    // 使用第一个周期（最新的）的数据
-    const latestPeriod = processedPeriods[0];
-    if (!latestPeriod || !latestPeriod.suppliers || latestPeriod.suppliers.length === 0) {
+    // 查找第一个有供应商数据的周期（基准周有数据的）
+    let targetPeriod = null;
+    for (const period of processedPeriods) {
+      if (period && period.baseWeek && period.baseWeek.bySupplier && 
+          Array.isArray(period.baseWeek.bySupplier) && 
+          period.baseWeek.bySupplier.length > 0) {
+        // 检查是否有数量大于0的供应商
+        const hasValidData = period.baseWeek.bySupplier.some(s => (Number(s.count) || 0) > 0);
+        if (hasValidData) {
+          targetPeriod = period;
+          break;
+        }
+      }
+    }
+    
+    // 如果没找到，使用第一个周期（即使数据可能为空）
+    if (!targetPeriod) {
+      targetPeriod = processedPeriods[0];
+    }
+    
+    if (!targetPeriod) {
       return [];
     }
 
-    // 按数量排序，取前10个
-    const sortedSuppliers = [...latestPeriod.suppliers]
-      .sort((a, b) => b.count - a.count)
+    // 使用基准周的数据（baseWeek.bySupplier），而不是合并后的suppliers
+    const baseSuppliers = targetPeriod.baseWeek?.bySupplier || [];
+    
+    if (!Array.isArray(baseSuppliers) || baseSuppliers.length === 0) {
+      return [];
+    }
+
+    // 过滤掉数量为0的供应商，按数量排序，取前10个
+    const sortedSuppliers = baseSuppliers
+      .filter(supplier => {
+        const count = Number(supplier?.count) || 0;
+        return supplier && supplier.supplierId && count > 0;
+      })
+      .sort((a, b) => {
+        const countA = Number(a?.count) || 0;
+        const countB = Number(b?.count) || 0;
+        return countB - countA;
+      })
       .slice(0, 10);
 
-    return sortedSuppliers.map(supplier => ({
-      name: supplier.supplierName || supplier.supplierId,
-      value: supplier.count,
-      percentage: parseFloat(supplier.percentage || 0)
-    }));
+    if (sortedSuppliers.length === 0) {
+      return [];
+    }
+
+    // 重新计算百分比（基于基准周总量）
+    const baseTotal = targetPeriod.baseTotal || 0;
+    const pieData = sortedSuppliers.map(supplier => {
+      const count = Number(supplier.count) || 0;
+      const percentage = baseTotal > 0 ? (count / baseTotal) * 100 : 0;
+      return {
+        name: supplier.supplierName || supplier.supplierId || '未知供应商',
+        value: count,
+        percentage: parseFloat(percentage.toFixed(2))
+      };
+    });
+
+    return pieData;
   }, [processedPeriods]);
 
   // 路由码饼状图数据（使用最新周期的数据）
   const routePieData = useMemo(() => {
     if (processedPeriods.length === 0) return [];
     
-    // 使用第一个周期（最新的）的数据
-    const latestPeriod = processedPeriods[0];
-    if (!latestPeriod || !latestPeriod.routes || latestPeriod.routes.length === 0) {
+    // 查找第一个有路由码数据的周期（基准周有数据的）
+    let targetPeriod = null;
+    for (const period of processedPeriods) {
+      if (period && period.baseWeek && period.baseWeek.byRoute && 
+          Array.isArray(period.baseWeek.byRoute) && 
+          period.baseWeek.byRoute.length > 0) {
+        // 检查是否有数量大于0的路由码
+        const hasValidData = period.baseWeek.byRoute.some(r => (Number(r.count) || 0) > 0);
+        if (hasValidData) {
+          targetPeriod = period;
+          break;
+        }
+      }
+    }
+    
+    // 如果没找到，使用第一个周期（即使数据可能为空）
+    if (!targetPeriod) {
+      targetPeriod = processedPeriods[0];
+    }
+    
+    if (!targetPeriod) {
       return [];
     }
 
-    // 按数量排序，取前10个
-    const sortedRoutes = [...latestPeriod.routes]
-      .sort((a, b) => b.count - a.count)
+    // 使用基准周的数据（baseWeek.byRoute），而不是合并后的routes
+    const baseRoutes = targetPeriod.baseWeek?.byRoute || [];
+    
+    if (!Array.isArray(baseRoutes) || baseRoutes.length === 0) {
+      return [];
+    }
+
+    // 过滤掉数量为0的路由码，按数量排序，取前10个
+    const sortedRoutes = baseRoutes
+      .filter(route => {
+        const count = Number(route?.count) || 0;
+        return route && route.routeCode && count > 0;
+      })
+      .sort((a, b) => {
+        const countA = Number(a?.count) || 0;
+        const countB = Number(b?.count) || 0;
+        return countB - countA;
+      })
       .slice(0, 10);
 
-    return sortedRoutes.map(route => ({
-      name: route.routeCode,
-      value: route.count,
-      percentage: parseFloat(route.percentage || 0)
-    }));
+    if (sortedRoutes.length === 0) {
+      return [];
+    }
+
+    // 重新计算百分比（基于基准周总量）
+    const baseTotal = targetPeriod.baseTotal || 0;
+    const pieData = sortedRoutes.map(route => {
+      const count = Number(route.count) || 0;
+      const percentage = baseTotal > 0 ? (count / baseTotal) * 100 : 0;
+      return {
+        name: route.routeCode || '未知路由码',
+        value: count,
+        percentage: parseFloat(percentage.toFixed(2))
+      };
+    });
+
+    return pieData;
   }, [processedPeriods]);
 
   // 供应商变化量趋势图数据
@@ -895,9 +993,9 @@ const VolumeDataDisplay = ({ comparisonPeriods, viewMode, onViewModeChange }) =>
               )}
 
               {/* 供应商饼状图 */}
-              {supplierPieData.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">供应商货量分布（最新周期）</h3>
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">供应商货量分布（最新周期）</h3>
+                {supplierPieData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={400}>
                     <PieChart>
                       <Pie
@@ -925,8 +1023,16 @@ const VolumeDataDisplay = ({ comparisonPeriods, viewMode, onViewModeChange }) =>
                       />
                     </PieChart>
                   </ResponsiveContainer>
-                </div>
-              )}
+                ) : (
+                  <div className="flex items-center justify-center h-[400px] text-gray-400">
+                    <div className="text-center">
+                      <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">暂无供应商数据</p>
+                      <p className="text-xs mt-1 text-gray-400">请检查数据上传或供应商路由映射配置</p>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* 供应商变化量趋势图 */}
               {supplierDiffTrendData.length > 0 && (
@@ -1034,9 +1140,9 @@ const VolumeDataDisplay = ({ comparisonPeriods, viewMode, onViewModeChange }) =>
               )}
 
               {/* 路由码饼状图 */}
-              {routePieData.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">路由码货量分布（最新周期）</h3>
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">路由码货量分布（最新周期）</h3>
+                {routePieData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={400}>
                     <PieChart>
                       <Pie
@@ -1064,8 +1170,16 @@ const VolumeDataDisplay = ({ comparisonPeriods, viewMode, onViewModeChange }) =>
                       />
                     </PieChart>
                   </ResponsiveContainer>
-                </div>
-              )}
+                ) : (
+                  <div className="flex items-center justify-center h-[400px] text-gray-400">
+                    <div className="text-center">
+                      <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">暂无路由码数据</p>
+                      <p className="text-xs mt-1 text-gray-400">请检查数据上传</p>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* 路由码变化量趋势图 */}
               {routeDiffTrendData.length > 0 && (

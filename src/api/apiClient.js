@@ -13,16 +13,7 @@ class APIClient {
     const config = { ...defaultOptions, ...options };
 
     try {
-      console.log('🌐 发送请求:', url, '方法:', config.method || 'GET');
-      if (config.body) {
-        console.log('📤 请求体:', config.body);
-      }
-      
       const response = await fetch(url, config);
-      
-      console.log('📥 收到响应:', response.status, response.statusText);
-      console.log('📥 响应头 Content-Type:', response.headers.get('Content-Type'));
-      
       if (!response.ok) {
         // 尝试读取错误响应
         let errorData;
@@ -43,7 +34,6 @@ class APIClient {
       
       if (contentType && contentType.includes('application/json')) {
         const text = await response.text();
-        console.log('📥 响应文本:', text);
         
         if (!text || text.trim() === '') {
           console.warn('⚠️ 警告：响应体为空');
@@ -63,14 +53,8 @@ class APIClient {
         data = text;
       }
       
-      console.log('✅ API请求成功，返回数据:', data);
       return data;
     } catch (error) {
-      console.error('❌ API请求错误:', error);
-      console.error('🔍 请求URL:', url);
-      console.error('🔍 错误类型:', error.name);
-      console.error('🔍 错误消息:', error.message);
-      
       // 如果是网络错误，提供更详细的错误信息
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
         const detailedError = new Error(`网络连接失败: 无法连接到服务器 ${url}。请检查：\n1. 服务器是否正在运行\n2. 网络连接是否正常\n3. 手机/PDA是否与服务器在同一网络\n4. 防火墙是否阻止了连接`);
@@ -281,6 +265,105 @@ class APIClient {
     getComplaints: (params = {}) => this.get(API_ENDPOINTS.COMPLAINTS, params),
     getComplaintsLatest: () => this.get(`${API_ENDPOINTS.COMPLAINTS}/latest`),
     deleteComplaints: () => this.delete(API_ENDPOINTS.COMPLAINTS),
+  };
+
+  // 外部接口调用相关
+  externalApi = {
+    /**
+     * 调用外部 POST 接口
+     * @param {string} url - 外部接口的完整 URL
+     * @param {object} params - 请求参数
+     * @param {string} token - 可选的 Token（如果不传则使用后端默认值）
+     * @returns {Promise} 外部接口返回的数据
+     */
+    post: (url, params = {}, token = null) => {
+      // 构建带 token 的 URL
+      const apiUrl = token 
+        ? `${API_ENDPOINTS.EXTERNAL_API_POST}?token=${encodeURIComponent(token)}`
+        : API_ENDPOINTS.EXTERNAL_API_POST;
+      return this.post(apiUrl, { url, params });
+    },
+
+    /**
+     * 调用外部 GET 接口
+     * @param {string} url - 外部接口的完整 URL
+     * @param {object} params - 查询参数
+     * @param {string} token - 可选的 Token（如果不传则使用后端默认值）
+     * @returns {Promise} 外部接口返回的数据
+     */
+    get: (url, params = {}, token = null) => {
+      // 构建带 token 的 URL
+      const apiUrl = token 
+        ? `${API_ENDPOINTS.EXTERNAL_API_GET}?token=${encodeURIComponent(token)}`
+        : API_ENDPOINTS.EXTERNAL_API_GET;
+      return this.post(apiUrl, { url, params });
+    },
+
+    /**
+     * 通用调用外部接口 - 支持动态选择 GET 或 POST
+     * @param {string} url - 外部接口的完整 URL
+     * @param {string} method - 请求方法 ('GET' 或 'POST')
+     * @param {object} params - 请求参数
+     * @param {string} token - 可选的 Token（如果不传则使用后端默认值）
+     * @returns {Promise} 外部接口返回的数据
+     */
+    request: (url, method = 'GET', params = {}, token = null) => {
+      // 构建带 token 的 URL
+      const apiUrl = token 
+        ? `${API_ENDPOINTS.EXTERNAL_API_REQUEST}?token=${encodeURIComponent(token)}`
+        : API_ENDPOINTS.EXTERNAL_API_REQUEST;
+      return this.post(apiUrl, { url, method, params });
+    },
+  };
+
+  // 数据同步相关API
+  dataSync = {
+    /**
+     * 获取所有数据模块的同步状态
+     * @returns {Promise}
+     */
+    getStatus: () => {
+      return this.get(API_ENDPOINTS.SYNC_STATUS);
+    },
+
+    /**
+     * 同步货量数据
+     * @param {string} token - JWT token
+     * @param {object} options - { endDate?: 'YYYY-MM-DD' }
+     * @returns {Promise}
+     */
+    syncInbound: (token, options = {}) => {
+      const url = token 
+        ? `${API_ENDPOINTS.SYNC_INBOUND}?token=${encodeURIComponent(token)}`
+        : API_ENDPOINTS.SYNC_INBOUND;
+      return this.post(url, options);
+    },
+
+    /**
+     * 同步问题件数据
+     * @param {string} token - JWT token
+     * @param {object} options - { endDate?: 'YYYY-MM-DD' }
+     * @returns {Promise}
+     */
+    syncProblemItems: (token, options = {}) => {
+      const url = token 
+        ? `${API_ENDPOINTS.SYNC_PROBLEM_ITEMS}?token=${encodeURIComponent(token)}`
+        : API_ENDPOINTS.SYNC_PROBLEM_ITEMS;
+      return this.post(url, options);
+    },
+
+    /**
+     * 同步所有数据模块
+     * @param {string} token - JWT token
+     * @param {object} options - { endDate?: 'YYYY-MM-DD' }
+     * @returns {Promise}
+     */
+    syncAll: (token, options = {}) => {
+      const url = token 
+        ? `${API_ENDPOINTS.SYNC_ALL}?token=${encodeURIComponent(token)}`
+        : API_ENDPOINTS.SYNC_ALL;
+      return this.post(url, options);
+    },
   };
 
   // 健康检查
