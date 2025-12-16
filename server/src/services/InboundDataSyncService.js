@@ -23,12 +23,16 @@ class InboundDataSyncService extends DataSyncService {
    */
   async fetchAndSaveData(dates, token, options = {}) {
     let totalRecordCount = 0;
-    const batchSize = options.batchSize || 3; // 每批次处理的天数（避免单次请求数据量过大）
     
-    // 分批处理日期（每次最多同步3天）
+    // 根据日期数量动态调整批次大小
+    // 如果超过30天，每批处理10天；否则每批处理3天
+    const batchSize = dates.length > 30 ? 10 : 3;
+    
+    // 分批处理日期
     for (let i = 0; i < dates.length; i += batchSize) {
       const batchDates = dates.slice(i, i + batchSize);
-      console.log(`📦 正在同步第 ${Math.floor(i / batchSize) + 1}/${Math.ceil(dates.length / batchSize)} 批...`);
+      const progress = Math.floor((i / dates.length) * 100);
+      console.log(`📦 正在同步第 ${Math.floor(i / batchSize) + 1}/${Math.ceil(dates.length / batchSize)} 批 (${progress}% 完成)...`);
       
       for (const date of batchDates) {
         const recordCount = await this.syncSingleDay(date, token);
@@ -54,6 +58,30 @@ class InboundDataSyncService extends DataSyncService {
     } catch (error) {
       console.error('查询最新数据日期失败:', error);
       return null;
+    }
+  }
+
+  /**
+   * 删除超过3个月的旧数据
+   * @returns {Promise<number>} 删除的记录数
+   */
+  async deleteOldData() {
+    try {
+      // 计算3个月前的日期
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      const cutoffDate = threeMonthsAgo.toISOString().split('T')[0];
+      
+      console.log(`🗑️  正在删除 ${cutoffDate} 之前的旧数据...`);
+      
+      const result = await InboundScanRecord.deleteMany({
+        scanDate: { $lt: cutoffDate }
+      });
+      
+      return result.deletedCount || 0;
+    } catch (error) {
+      console.error('删除旧数据失败:', error);
+      return 0;
     }
   }
 

@@ -5,7 +5,8 @@
   "type": "module",
   "description": "分拣管理系统 - Modern Sorting Management System with MongoDB",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run front:dev & npm run server:dev",
+    "front:dev": "vite",
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",

@@ -34,6 +34,30 @@ class ProblemItemSyncService extends DataSyncService {
   }
 
   /**
+   * 删除超过3个月的旧数据
+   * @returns {Promise<number>} 删除的记录数
+   */
+  async deleteOldData() {
+    try {
+      // 计算3个月前的日期
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      const cutoffDate = threeMonthsAgo.toISOString().split('T')[0];
+      
+      console.log(`🗑️  正在删除 ${cutoffDate} 之前的旧数据...`);
+      
+      const result = await ProblemItem.deleteMany({
+        registerDate: { $lt: cutoffDate }
+      });
+      
+      return result.deletedCount || 0;
+    } catch (error) {
+      console.error('删除旧数据失败:', error);
+      return 0;
+    }
+  }
+
+  /**
    * 实现具体的数据获取和保存逻辑
    * @param {Array<string>} dates - 需要同步的日期数组
    * @param {string} token - JWT token
@@ -42,12 +66,13 @@ class ProblemItemSyncService extends DataSyncService {
    */
   async fetchAndSaveData(dates, token, options = {}) {
     let totalRecordCount = 0;
-    const batchSize = options.batchSize || 7; // 问题件API支持7天查询
+    const batchSize = 7; // 问题件API支持7天查询
     
     // 分批处理日期（每批最多7天）
     for (let i = 0; i < dates.length; i += batchSize) {
       const batchDates = dates.slice(i, i + batchSize);
-      console.log(`📦 正在同步第 ${Math.floor(i / batchSize) + 1}/${Math.ceil(dates.length / batchSize)} 批...`);
+      const progress = Math.floor((i / dates.length) * 100);
+      console.log(`📦 正在同步第 ${Math.floor(i / batchSize) + 1}/${Math.ceil(dates.length / batchSize)} 批 (${progress}% 完成)...`);
       
       const recordCount = await this.syncBatch(batchDates, token);
       totalRecordCount += recordCount;

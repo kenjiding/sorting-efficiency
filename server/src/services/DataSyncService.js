@@ -38,10 +38,10 @@ class DataSyncService {
     const dates = [];
     const end = endDate ? new Date(endDate) : new Date();
     
-    // 如果lastSyncDate不存在，默认从7天前开始（外部API限制）
+    // 如果lastSyncDate不存在（首次同步），从3个月前开始
     const start = lastSyncDate 
       ? new Date(new Date(lastSyncDate).getTime() + 24 * 60 * 60 * 1000) // 从下一天开始
-      : new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000); // 默认同步最近7天
+      : new Date(end.getTime() - 90 * 24 * 60 * 60 * 1000); // 3个月前（90天）
     
     const current = new Date(start);
     while (current <= end) {
@@ -58,6 +58,14 @@ class DataSyncService {
    */
   async getLatestDataDate() {
     return null;
+  }
+
+  /**
+   * 删除超过4个月的旧数据（子类实现）
+   * @returns {Promise<number>} 删除的记录数
+   */
+  async deleteOldData() {
+    return 0;
   }
 
   /**
@@ -81,7 +89,11 @@ class DataSyncService {
         lastSyncDate = lastSync?.lastSyncDate || null;
       }
       
-      console.log(`📅 数据库最新数据日期: ${lastSyncDate || '无数据（首次同步）'}`);
+      if (lastSyncDate) {
+        console.log(`📅 数据库最新数据日期: ${lastSyncDate}`);
+      } else {
+        console.log(`📅 数据库无数据，首次同步将获取最近3个月数据`);
+      }
       
       // 2. 计算需要同步的日期范围
       const datesToSync = this.calculateSyncDateRange(lastSyncDate, endDate);
@@ -99,6 +111,10 @@ class DataSyncService {
       
       console.log(`📊 需要同步的日期: ${datesToSync[0]} 至 ${datesToSync[datesToSync.length - 1]} (共${datesToSync.length}天)`);
       
+      if (datesToSync.length > 30) {
+        console.log(`⚠️  数据量较大，预计需要较长时间，请耐心等待...`);
+      }
+      
       // 3. 更新同步状态为进行中
       await SyncMetadata.findOneAndUpdate(
         { dataType: this.dataType },
@@ -111,6 +127,15 @@ class DataSyncService {
       
       // 4. 执行具体的数据获取和保存（由子类实现）
       const result = await this.fetchAndSaveData(datesToSync, token, options);
+      
+      // 4.5. 异步删除超过4个月的旧数据（不阻塞同步流程）
+      this.deleteOldData().then(deletedCount => {
+        if (deletedCount > 0) {
+          console.log(`🗑️  已删除 ${deletedCount} 条超过4个月的旧数据`);
+        }
+      }).catch(err => {
+        console.error('删除旧数据失败:', err);
+      });
       
       // 5. 更新同步元数据
       const duration = Date.now() - startTime;
@@ -188,6 +213,7 @@ class DataSyncService {
    */
   async getSyncStatus() {
     const metadata = await this.getLastSyncMetadata();
+    console.log('metadata', metadata);
     if (!metadata) {
       return {
         dataType: this.dataType,
